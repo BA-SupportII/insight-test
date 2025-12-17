@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+.venv/
+*.pyc
+__pycache__/
+.DS_Store
+dist/
+build/
+*.log
+_archive/
+.cache/
+data/
+.codeium/

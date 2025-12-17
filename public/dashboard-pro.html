@@ -1,0 +1,1729 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>InsightTrack Dashboard PRO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/tom-select@2.4.1/dist/css/tom-select.css"
+    />
+    <script
+      src="https://cdn.jsdelivr.net/npm/tom-select@2.4.1/dist/js/tom-select.complete.min.js"
+      defer
+    ></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css"
+    />
+    <script
+      src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"
+      defer
+    ></script>
+    <script
+      src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"
+      defer
+      data-lucide-umd
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+      defer
+    ></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --font-scale: 1;
+        --negative-color: #f87171;
+        --bg-gradient: linear-gradient(
+          135deg,
+          #0f172a 0%,
+          #101828 55%,
+          #05080f 100%
+        );
+        --glow-gradient: radial-gradient(
+          circle at 18% 20%,
+          rgba(56, 189, 248, 0.25),
+          transparent 60%
+        );
+        --text-primary: #e4ebff;
+        --text-secondary: #9aa9ce;
+        --surface-panel: rgba(20, 26, 41, 0.92);
+        --surface-card: rgba(14, 19, 32, 0.96);
+        --surface-card-border: rgba(59, 130, 246, 0.22);
+        --surface-table: rgba(10, 14, 24, 0.94);
+        --surface-table-border: rgba(94, 234, 212, 0.18);
+        --surface-hover: rgba(59, 130, 246, 0.12);
+        --header-bg: rgba(13, 18, 32, 0.97);
+        --topbar-bg: rgba(14, 20, 34, 0.94);
+        --bottombar-bg: rgba(10, 14, 24, 0.92);
+        --button-primary: #38bdf8;
+        --button-primary-hover: #0ea5e9;
+        --button-primary-contrast: #04121e;
+        --button-secondary: rgba(59, 130, 246, 0.18);
+        --button-secondary-border: rgba(59, 130, 246, 0.35);
+        --badge-bg: rgba(59, 130, 246, 0.18);
+        --badge-border: rgba(94, 234, 212, 0.28);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: var(--bg-gradient);
+        min-height: 100vh;
+        font-family:
+          "Inter",
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        color: var(--text-primary);
+        font-size: calc(14px * var(--font-scale));
+        transition:
+          background 0.4s ease,
+          color 0.4s ease;
+        overflow-x: hidden;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: -10%;
+        background: var(--glow-gradient);
+        opacity: 0.45;
+        pointer-events: none;
+        mix-blend-mode: screen;
+        animation: glowPulse 12s ease-in-out infinite alternate;
+        z-index: -1;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .fade-in {
+        animation: fadeIn 0.6s ease both;
+      }
+      .fade-in-up {
+        animation: fadeInUp 0.7s ease both;
+      }
+
+      .top-bar {
+        background: var(--topbar-bg);
+        border-radius: 22px;
+        padding: 24px 28px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        box-shadow: 0 26px 48px rgba(8, 12, 20, 0.45);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .top-bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          135deg,
+          rgba(59, 130, 246, 0.18),
+          transparent 55%
+        );
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      .top-bar > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .top-bar-actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .bottom-bar {
+        background: var(--bottombar-bg);
+        border-radius: 18px;
+        padding: 18px 24px;
+        border: 1px solid rgba(71, 85, 105, 0.35);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .filter-card {
+        background: var(--surface-panel);
+        border: 1px solid rgba(99, 102, 124, 0.32);
+        border-radius: 18px;
+        box-shadow: 0 22px 40px rgba(8, 12, 20, 0.4);
+        transition:
+          transform 0.3s ease,
+          box-shadow 0.3s ease;
+      }
+      .filter-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 30px 54px rgba(8, 12, 20, 0.52);
+      }
+
+      .filter-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 9999px;
+        display: grid;
+        place-items: center;
+        transition: transform 0.2s ease;
+      }
+      .filter-icon.brand-group {
+        background: rgba(168, 85, 247, 0.2);
+        color: #d8b4fe;
+      }
+      .filter-icon.brand {
+        background: rgba(34, 197, 94, 0.2);
+        color: #86efac;
+      }
+      .filter-icon.currency {
+        background: rgba(250, 204, 21, 0.2);
+        color: #facc15;
+      }
+      .filter-icon.date {
+        background: rgba(59, 130, 246, 0.2);
+        color: #93c5fd;
+      }
+
+      .ts-wrapper.multi .ts-control {
+        background: rgba(10, 14, 24, 0.95);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        color: var(--text-primary);
+        min-height: 48px;
+      }
+      .ts-wrapper.multi .ts-control input {
+        color: #cbd5f5;
+      }
+      .ts-wrapper.plugin-remove_button .item {
+        background: rgba(59, 130, 246, 0.18);
+        border: 1px solid rgba(59, 130, 246, 0.28);
+        color: #bfdbfe;
+      }
+
+      .status-banner {
+        border-radius: 16px;
+        padding: 12px 18px;
+        font-size: 0.82rem;
+        letter-spacing: 0.04em;
+        font-weight: 500;
+      }
+      .status-info {
+        background: rgba(14, 165, 233, 0.16);
+        border: 1px solid rgba(14, 165, 233, 0.36);
+        color: #bae6fd;
+      }
+      .status-success {
+        background: rgba(34, 197, 94, 0.16);
+        border: 1px solid rgba(16, 185, 129, 0.32);
+        color: #86efac;
+      }
+      .status-error {
+        background: rgba(239, 68, 68, 0.14);
+        border: 1px solid rgba(248, 113, 113, 0.32);
+        color: #fca5a5;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 18px;
+      }
+      .summary-card {
+        padding: 20px;
+        border-radius: 18px;
+        background: linear-gradient(
+          145deg,
+          rgba(24, 33, 52, 0.95),
+          rgba(16, 22, 36, 0.98)
+        );
+        border: 1px solid var(--surface-card-border);
+        box-shadow: 0 18px 34px rgba(7, 10, 18, 0.4);
+        position: relative;
+        overflow: hidden;
+        transition:
+          transform 0.25s ease,
+          box-shadow 0.25s ease;
+      }
+      .summary-card::after {
+        content: "";
+        position: absolute;
+        inset: -30%;
+        background: radial-gradient(
+          circle at 20% 20%,
+          rgba(59, 130, 246, 0.25),
+          transparent 60%
+        );
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      .summary-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 26px 48px rgba(7, 10, 18, 0.55);
+      }
+      .summary-card > * {
+        position: relative;
+        z-index: 1;
+      }
+      .summary-icon {
+        width: 18px;
+        height: 18px;
+        color: var(--button-primary);
+      }
+      .summary-label {
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--text-secondary);
+      }
+      .summary-value {
+        font-size: 1.45rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-top: 8px;
+      }
+      .summary-subtle {
+        font-size: 0.76rem;
+        color: var(--text-secondary);
+      }
+
+      .table-shell {
+        border: 1px solid var(--surface-table-border);
+        border-radius: 20px;
+        overflow: hidden;
+        background: var(--surface-table);
+        box-shadow: 0 28px 60px rgba(7, 11, 20, 0.55);
+      }
+      .table-scroll {
+        overflow: auto;
+        max-height: 68vh;
+        min-height: 360px;
+        scrollbar-width: thin;
+      }
+      .table-scroll::-webkit-scrollbar {
+        height: 8px;
+        width: 10px;
+      }
+      .table-scroll::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.38);
+        border-radius: 9999px;
+      }
+
+      thead tr {
+        border-bottom: 1px solid rgba(71, 85, 105, 0.45);
+      }
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: var(--header-bg);
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        color: var(--text-secondary);
+        white-space: normal;
+        line-height: 1.3;
+      }
+      th .header-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      th .header-icons {
+        display: inline-flex;
+        gap: 4px;
+        opacity: 0.65;
+      }
+      th[role="button"] {
+        cursor: pointer;
+      }
+
+      tbody tr {
+        transition:
+          background 0.22s ease,
+          box-shadow 0.22s ease;
+        color: var(--text-primary);
+      }
+      tbody tr:not(.row-highlight-group):not(.row-highlight-currency):hover {
+        background: var(--surface-hover);
+      }
+      tr.group-row {
+        background: rgba(18, 24, 38, 0.96);
+      }
+      tr.brand-row {
+        background: rgba(12, 17, 28, 0.95);
+      }
+      .row-highlight-group {
+        background: rgba(59, 130, 246, 0.17) !important;
+        box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.3);
+      }
+      .row-highlight-currency {
+        background: rgba(34, 197, 94, 0.2) !important;
+        box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.28);
+      }
+
+      .search-spinner {
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .search-spinner.show {
+        display: inline-flex;
+      }
+      .animate-spin-slow {
+        animation: spin 1s linear infinite;
+      }
+
+      .settings-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.72);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 70;
+      }
+      .settings-overlay.show {
+        display: flex;
+      }
+
+      .settings-panel {
+        background: var(--surface-card);
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 20px;
+        width: min(420px, 92vw);
+        padding: 26px 28px;
+        box-shadow: 0 32px 60px rgba(8, 12, 24, 0.55);
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      .settings-panel header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+      .settings-panel section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .settings-panel section label {
+        font-size: 0.82rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+      .export-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.85);
+        display: none;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 24px;
+        overflow-y: auto;
+        z-index: 80;
+      }
+      .export-overlay.show {
+        display: flex;
+      }
+
+      .export-panel {
+        background: var(--surface-card);
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 22px;
+        width: min(1180px, 98vw);
+        box-shadow: 0 32px 60px rgba(8, 12, 24, 0.55);
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        padding: 30px 32px;
+        animation: fadeIn 0.35s ease both;
+      }
+      .export-panel__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .export-panel__actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .export-panel__header h2 {
+        font-size: 1.35rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+      }
+      .export-panel__header p {
+        margin: 6px 0 0;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+      }
+      .export-table-wrapper {
+        border: 1px solid var(--surface-table-border);
+        border-radius: 18px;
+        background: var(--surface-table);
+        overflow: hidden;
+        overflow-x: auto;
+        max-height: 70vh;
+      }
+      .export-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 1040px;
+      }
+      .export-table thead th {
+        position: sticky;
+        top: 0;
+        background: rgba(30, 41, 59, 0.78);
+        backdrop-filter: none;
+        padding: 14px 16px;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+      }
+      .export-table tbody td {
+        padding: 12px 16px;
+        font-size: 0.85rem;
+        color: var(--text-primary);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+        white-space: nowrap;
+      }
+      .export-table tbody tr:hover {
+        background: var(--surface-hover);
+      }
+      .export-cell-number {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .export-empty {
+        text-align: center;
+        padding: 36px 0;
+        color: var(--text-secondary);
+      }
+      .control-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .settings-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.45rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(59, 130, 246, 0.32);
+        background: rgba(59, 130, 246, 0.12);
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+      .settings-chip.active {
+        background: var(--button-primary);
+        color: var(--button-primary-contrast);
+        border-color: transparent;
+        box-shadow: 0 12px 30px rgba(14, 165, 233, 0.28);
+      }
+
+      .btn-primary {
+        background: var(--button-primary);
+        color: var(--button-primary-contrast);
+        border-radius: 12px;
+        padding: 0.6rem 1.1rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 12px 24px rgba(14, 165, 233, 0.2);
+        transition:
+          background 0.2s ease,
+          transform 0.2s ease;
+      }
+      .btn-primary:hover {
+        background: var(--button-primary-hover);
+        transform: translateY(-1px);
+      }
+
+      .btn-secondary {
+        background: var(--button-secondary);
+        border: 1px solid var(--button-secondary-border);
+        color: var(--text-primary);
+        border-radius: 12px;
+        padding: 0.6rem 1.1rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition:
+          background 0.2s ease,
+          border-color 0.2s ease,
+          transform 0.2s ease;
+      }
+      .btn-secondary:hover {
+        background: rgba(59, 130, 246, 0.24);
+        border-color: rgba(59, 130, 246, 0.45);
+        transform: translateY(-1px);
+      }
+
+      .text-negative {
+        color: var(--negative-color) !important;
+      }
+
+      .layout-columns {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+      }
+
+      .main-content {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+
+      .assistant-panel {
+        width: 360px;
+        background: var(--surface-card);
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 20px;
+        padding: 20px 20px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        box-shadow: 0 28px 60px rgba(8, 12, 21, 0.55);
+        position: relative;
+        transition:
+          transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+          opacity 0.3s ease;
+      }
+
+      .assistant-panel--collapsed {
+        transform: translateX(110%);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .assistant-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .assistant-heading {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .assistant-heading h3 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .assistant-heading i {
+        width: 20px;
+        height: 20px;
+        color: var(--button-primary);
+      }
+
+      .assistant-status-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      .assistant-mode-toggle {
+        display: inline-flex;
+        border-radius: 9999px;
+        padding: 4px;
+        background: rgba(59, 130, 246, 0.12);
+        border: 1px solid rgba(59, 130, 246, 0.24);
+      }
+
+      .assistant-mode-toggle button {
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        padding: 6px 12px;
+        border-radius: 9999px;
+        font-size: 0.74rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease;
+      }
+
+      .assistant-mode-toggle button.active {
+        background: var(--button-primary);
+        color: var(--button-primary-contrast);
+        box-shadow: 0 10px 18px rgba(14, 165, 233, 0.2);
+      }
+
+      .assistant-icon-btn {
+        border: none;
+        background: rgba(59, 130, 246, 0.18);
+        border-radius: 12px;
+        padding: 6px 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+      .assistant-icon-btn:hover {
+        background: rgba(59, 130, 246, 0.28);
+      }
+
+      .assistant-messages {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-right: 4px;
+        max-height: 60vh;
+      }
+
+      .assistant-message {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .assistant-bubble {
+        background: linear-gradient(
+          135deg,
+          rgba(20, 26, 42, 0.95),
+          rgba(14, 19, 32, 0.98)
+        );
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 16px;
+        padding: 14px;
+        line-height: 1.5;
+        color: var(--text-primary);
+        font-size: 0.88rem;
+      }
+
+      .assistant-message--user .assistant-bubble {
+        background: linear-gradient(
+          135deg,
+          rgba(59, 130, 246, 0.2),
+          rgba(59, 130, 246, 0.08)
+        );
+        border-color: rgba(59, 130, 246, 0.3);
+        align-self: flex-end;
+      }
+
+      .assistant-message--assistant .assistant-bubble {
+        align-self: flex-start;
+      }
+
+      .assistant-bubble--thinking {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        opacity: 0.8;
+      }
+
+      .assistant-thinking {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-secondary);
+        font-size: 0.82rem;
+      }
+
+      .assistant-spin {
+        animation: spin 1s linear infinite;
+        width: 18px;
+        height: 18px;
+      }
+
+      .assistant-meta {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-secondary);
+        display: flex;
+        gap: 12px;
+      }
+
+      .assistant-card {
+        background: linear-gradient(
+          145deg,
+          rgba(18, 25, 38, 0.95),
+          rgba(12, 18, 30, 0.97)
+        );
+        border: 1px solid rgba(94, 234, 212, 0.16);
+        border-radius: 16px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .assistant-card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .assistant-card-header i {
+        width: 18px;
+        height: 18px;
+        color: var(--button-primary);
+      }
+
+      .assistant-card-header h4 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .assistant-card-header p {
+        margin: 2px 0 0;
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        letter-spacing: 0.04em;
+      }
+
+      .assistant-section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px 0;
+        border-top: 1px solid rgba(148, 163, 184, 0.12);
+      }
+
+      .assistant-section:first-of-type {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      .assistant-section header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.82rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      .assistant-section header i {
+        width: 16px;
+        height: 16px;
+        color: var(--button-primary);
+      }
+
+      .assistant-section ul,
+      .assistant-section ol {
+        padding-left: 18px;
+        margin: 0;
+        display: grid;
+        gap: 6px;
+      }
+
+      .assistant-section--actions ul {
+        list-style: disc;
+        color: var(--text-primary);
+      }
+
+      .assistant-hints {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .assistant-hint-btn {
+        border: 1px solid rgba(59, 130, 246, 0.28);
+        background: rgba(59, 130, 246, 0.12);
+        color: var(--text-secondary);
+        border-radius: 9999px;
+        padding: 6px 12px;
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease;
+      }
+      .assistant-hint-btn:hover {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--text-primary);
+      }
+
+      .assistant-composer {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        border-top: 1px solid rgba(148, 163, 184, 0.12);
+        padding-top: 12px;
+      }
+
+      .assistant-composer-inner {
+        display: flex;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 14px;
+        padding: 6px 10px;
+        background: rgba(8, 12, 20, 0.9);
+        align-items: flex-end;
+        gap: 10px;
+      }
+
+      .assistant-composer textarea {
+        flex: 1;
+        resize: none;
+        border: none;
+        background: transparent;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        line-height: 1.4;
+        max-height: 160px;
+      }
+      .assistant-composer textarea:focus {
+        outline: none;
+      }
+
+      .assistant-send {
+        border: none;
+        background: var(--button-primary);
+        color: var(--button-primary-contrast);
+        border-radius: 12px;
+        padding: 8px 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+      .assistant-send:hover {
+        background: var(--button-primary-hover);
+      }
+
+      .assistant-composer-meta {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .assistant-download {
+        border: 1px solid rgba(94, 234, 212, 0.28);
+        background: rgba(94, 234, 212, 0.14);
+        color: var(--text-primary);
+        border-radius: 10px;
+        padding: 6px 10px;
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        cursor: pointer;
+        transition:
+          background 0.2s ease,
+          transform 0.2s ease;
+      }
+      .assistant-download:hover {
+        background: rgba(94, 234, 212, 0.2);
+        transform: translateY(-1px);
+      }
+
+      .assistant-footnote {
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .assistant-empty {
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+
+      .assistant-metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+      }
+      .assistant-metric-grid div {
+        background: rgba(12, 17, 30, 0.85);
+        border-radius: 12px;
+        padding: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .assistant-metric-grid span {
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+      .assistant-metric-grid strong {
+        font-size: 1.1rem;
+      }
+
+      .assistant-card--meta {
+        background: rgba(24, 34, 54, 0.92);
+        border-color: rgba(59, 130, 246, 0.24);
+        font-size: 0.78rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .assistant-card--thinking {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .assistant-card--meta i,
+      .assistant-card--thinking i {
+        width: 16px;
+        height: 16px;
+      }
+
+      .assistant-card--thinking span {
+        color: var(--text-secondary);
+      }
+
+      .assistant-card ul,
+      .assistant-card ol {
+        margin: 0;
+      }
+
+      .assistant-footnote i {
+        width: 14px;
+        height: 14px;
+        color: var(--button-primary);
+      }
+
+      .assistant-collapsed .assistant-panel {
+        transform: translateX(110%);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      @media (max-width: 1280px) {
+        .layout-columns {
+          flex-direction: column;
+        }
+        .assistant-panel {
+          width: 100%;
+          max-width: 100%;
+        }
+        .assistant-panel--collapsed {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .top-bar {
+          padding: 20px;
+        }
+        .bottom-bar {
+          flex-direction: column;
+          gap: 8px;
+        }
+        .assistant-messages {
+          max-height: 50vh;
+        }
+        .export-overlay {
+          padding: 28px 12px;
+        }
+        .export-panel {
+          padding: 24px 20px;
+          border-radius: 18px;
+        }
+        .export-table thead th,
+        .export-table tbody td {
+          padding: 10px 12px;
+          font-size: 0.8rem;
+        }
+      }
+
+      @keyframes glowPulse {
+        from {
+          opacity: 0.2;
+          transform: scale(1);
+        }
+        to {
+          opacity: 0.45;
+          transform: scale(1.05);
+        }
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="w-full px-5 sm:px-8 lg:px-12 py-10 space-y-8">
+      <div class="top-bar">
+        <div
+          class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+        >
+          <div>
+            <p class="text-xs uppercase tracking-[0.4em] text-slate-300">
+              InsightTrack
+            </p>
+            <h1 class="text-3xl font-semibold text-slate-100 mt-1">
+              Dashboard PRO
+            </h1>
+            <p class="text-slate-400 text-sm mt-2 max-w-xl">
+              Filter by dimension, inspect retention and conversion metrics,
+              then drill down into every brand under a group.
+            </p>
+          </div>
+          <div class="top-bar-actions">
+            <span class="info-badge" id="lastUpdated">Last updated: --</span>
+            <button id="resetFilters" class="btn-secondary">
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+              Reset
+            </button>
+            <button id="openSettings" class="btn-secondary">
+              <i data-lucide="settings" class="w-4 h-4"></i>
+              Settings
+            </button>
+            <button id="openExport" class="btn-secondary">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              Export
+            </button>
+            <button id="assistantToggle" class="btn-secondary">
+              <i data-lucide="bot" class="w-4 h-4"></i>
+              Assistant
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <section class="filter-card p-6 space-y-6">
+        <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3">
+              <span class="filter-icon brand-group">
+                <i data-lucide="layers" class="w-5 h-5"></i>
+              </span>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-slate-400">
+                  Brand Group
+                </p>
+                <p class="text-sm font-semibold text-slate-100">
+                  Select groups
+                </p>
+              </div>
+            </div>
+            <select
+              id="brandGroupSelect"
+              multiple
+              placeholder="All brand groups"
+            ></select>
+          </div>
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3">
+              <span class="filter-icon brand">
+                <i data-lucide="sparkles" class="w-5 h-5"></i>
+              </span>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-slate-400">
+                  Brand
+                </p>
+                <p class="text-sm font-semibold text-slate-100">Pick brands</p>
+              </div>
+            </div>
+            <select id="brandSelect" multiple placeholder="All brands"></select>
+          </div>
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3">
+              <span class="filter-icon currency">
+                <i data-lucide="coins" class="w-5 h-5"></i>
+              </span>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-slate-400">
+                  Currency
+                </p>
+                <p class="text-sm font-semibold text-slate-100">
+                  Choose currencies
+                </p>
+              </div>
+            </div>
+            <select
+              id="currencySelect"
+              multiple
+              placeholder="All currencies"
+            ></select>
+          </div>
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3">
+              <span class="filter-icon date">
+                <i data-lucide="calendar" class="w-5 h-5"></i>
+              </span>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-slate-400">
+                  Date Range
+                </p>
+                <p class="text-sm font-semibold text-slate-100">
+                  Set custom range
+                </p>
+              </div>
+            </div>
+            <div class="relative">
+              <i
+                data-lucide="calendar"
+                class="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none"
+              ></i>
+              <input
+                id="dateRange"
+                class="w-full bg-slate-900/70 border border-slate-700/60 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/60"
+                placeholder="Select range"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <p class="text-xs uppercase tracking-wide text-slate-400">
+            Quick ranges
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              class="quick-range-btn px-3 py-1.5 rounded-full border border-slate-600/50 text-xs font-medium text-slate-200 hover:bg-slate-700/60 transition"
+              data-range="this-month"
+            >
+              This Month
+            </button>
+            <button
+              class="quick-range-btn px-3 py-1.5 rounded-full border border-slate-600/50 text-xs font-medium text-slate-200 hover:bg-slate-700/60 transition"
+              data-range="last-month"
+            >
+              Last Month
+            </button>
+            <button
+              class="quick-range-btn px-3 py-1.5 rounded-full border border-slate-600/50 text-xs font-medium text-slate-200 hover:bg-slate-700/60 transition"
+              data-range="prev-month"
+            >
+              Previous Month
+            </button>
+          </div>
+          <div class="flex-grow"></div>
+          <button id="searchBtn" class="btn-primary">
+            <i data-lucide="search" class="w-4 h-4"></i>
+            <span>Search</span>
+            <span id="searchSpinner" class="search-spinner">
+              <i data-lucide="refresh-cw" class="w-4 h-4 animate-spin-slow"></i>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="statusMessage"
+        class="status-banner status-info hidden"
+      ></section>
+
+      <div class="flex flex-col xl:flex-row gap-6">
+        <main class="flex-1 space-y-5">
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div class="flex items-center gap-2">
+                <i data-lucide="wallet" class="summary-icon"></i>
+                <p class="summary-label">Total Deposit</p>
+              </div>
+              <p class="summary-value" data-summary="deposit">--</p>
+              <span class="summary-subtle" data-summary-info="deposit"
+                >Awaiting search...</span
+              >
+            </div>
+            <div class="summary-card">
+              <div class="flex items-center gap-2">
+                <i data-lucide="piggy-bank" class="summary-icon"></i>
+                <p class="summary-label">Net Deposit</p>
+              </div>
+              <p class="summary-value" data-summary="net">--</p>
+              <span class="summary-subtle" data-summary-info="net"
+                >Awaiting search...</span
+              >
+            </div>
+            <div class="summary-card">
+              <div class="flex items-center gap-2">
+                <i data-lucide="chart-line" class="summary-icon"></i>
+                <p class="summary-label">Turnover</p>
+              </div>
+              <p class="summary-value" data-summary="turnover">--</p>
+              <span class="summary-subtle" data-summary-info="turnover"
+                >Awaiting search...</span
+              >
+            </div>
+            <div class="summary-card">
+              <div class="flex items-center gap-2">
+                <i data-lucide="trophy" class="summary-icon"></i>
+                <p class="summary-label">Top Brand</p>
+              </div>
+              <p class="summary-value text-base" data-summary="topBrand">--</p>
+              <span class="summary-subtle" data-summary-info="topBrand"
+                >Run a search to update</span
+              >
+            </div>
+          </div>
+
+          <div
+            class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between"
+          >
+            <div>
+              <h2 class="text-xl font-semibold text-slate-100">
+                Brand Performance
+              </h2>
+              <p class="text-slate-400 text-sm" id="resultSummary">
+                Select filters then press search to populate the table.
+              </p>
+            </div>
+            <p class="text-xs text-slate-500 max-w-md">
+              Metrics shown in BDT unless indicated. Hover column headers for
+              formulas and sort actions.
+            </p>
+          </div>
+
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table class="min-w-full text-sm text-slate-100">
+                <thead class="text-slate-300 uppercase">
+                  <tr class="divide-x divide-slate-700/50">
+                    <th class="px-4 py-3 text-left">
+                      <span class="header-label">
+                        Brand Group
+                        <span class="header-icons">
+                          <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                          <span class="flex flex-col leading-none">
+                            <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+                            <i
+                              data-lucide="chevron-down"
+                              class="w-3.5 h-3.5 -mt-1"
+                            ></i>
+                          </span>
+                        </span>
+                      </span>
+                    </th>
+                    <th class="px-4 py-3 text-left">
+                      <span class="header-label">
+                        Currency
+                        <span class="header-icons">
+                          <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                          <span class="flex flex-col leading-none">
+                            <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+                            <i
+                              data-lucide="chevron-down"
+                              class="w-3.5 h-3.5 -mt-1"
+                            ></i>
+                          </span>
+                        </span>
+                      </span>
+                    </th>
+                    <th class="px-4 py-3 text-right">
+                      <span class="header-label">SignUp Player</span>
+                    </th>
+                    <th class="px-4 py-3 text-right">
+                      <span class="header-label">FTD Player</span>
+                    </th>
+                    <th class="px-4 py-3 text-right">
+                      <span class="header-label">Total Deposit</span>
+                    </th>
+                    <th class="px-4 py-3 text-right">
+                      <span class="header-label">Total Withdraw</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="Total Deposit - Total Withdraw"
+                    >
+                      <span class="header-label">Net Deposit</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="Total Deposit / Unique Player"
+                    >
+                      <span class="header-label">Ave DEP</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="(Net Deposit / Total Deposit) x 100%"
+                    >
+                      <span class="header-label">Net Ratio %</span>
+                    </th>
+                    <th class="px-4 py-3 text-right">
+                      <span class="header-label">Bonus</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="(Bonus / Company Win/Loss) x 100%"
+                    >
+                      <span class="header-label">Bonus %</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="Bonus / Unique Player"
+                    >
+                      <span class="header-label">Ave Bonus / Player</span>
+                    </th>
+                    <th class="px-4 py-3 text-right">
+                      <span class="header-label">Unique Player</span>
+                    </th>
+                    <th class="px-4 py-3 text-right">
+                      <span class="header-label">Turnover</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="Turnover / Unique Player"
+                    >
+                      <span class="header-label">Ave Turnover</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="Turnover / Total Deposit"
+                    >
+                      <span class="header-label">Ave WR</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="(Net Deposit / Total Deposit) x 100%"
+                    >
+                      <span class="header-label">Gross Revenue %</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="(Company Win/Loss - Bonus) / Unique Player"
+                    >
+                      <span class="header-label">NGR per Player</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="Net Deposit / Unique Player"
+                    >
+                      <span class="header-label">Net per Player</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="Company Win/Loss - Bonus"
+                    >
+                      <span class="header-label">Net Win/Loss</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="(Unique Players - FTD last month) / Unique Players last month x 100%"
+                    >
+                      <span class="header-label">Retention Rate %</span>
+                    </th>
+                    <th
+                      class="px-4 py-3 text-right"
+                      title="(FTD Player / SignUp Player) x 100%"
+                    >
+                      <span class="header-label">FTD Conversion %</span>
+                    </th>
+                    <th class="px-4 py-3 text-right">
+                      <span class="header-label">Company Win/Loss</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-slate-800">
+                  <tr>
+                    <td colspan="23" class="text-center py-12 text-slate-400">
+                      Select a date range and press search.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+
+        <aside
+          id="assistantPanel"
+          class="assistant-panel"
+          aria-label="Insights Assistant"
+        >
+          <div class="assistant-header">
+            <div class="assistant-heading">
+              <i data-lucide="bot"></i>
+              <div>
+                <h3 id="assistantModeLabel">Insights Assistant</h3>
+                <div class="assistant-status-row">
+                  <span id="assistantModeDescriptor">Quick Preview</span>
+                  <span>· Local only</span>
+                </div>
+              </div>
+            </div>
+            <button
+              id="assistantCollapse"
+              class="assistant-icon-btn"
+              type="button"
+              aria-label="Hide assistant"
+            >
+              <i data-lucide="panel-right-close"></i>
+            </button>
+          </div>
+          <div
+            class="assistant-status-row"
+            id="assistantStatus"
+            aria-live="polite"
+          >
+            Waiting for dataset
+          </div>
+          <div
+            class="assistant-mode-toggle"
+            role="radiogroup"
+            aria-label="Assistant mode"
+          >
+            <button
+              id="assistantModeQuick"
+              type="button"
+              role="radio"
+              aria-checked="true"
+            >
+              Quick Preview
+            </button>
+            <button
+              id="assistantModeVerified"
+              type="button"
+              role="radio"
+              aria-checked="false"
+            >
+              Verified
+            </button>
+          </div>
+          <div
+            class="assistant-messages"
+            id="assistantMessages"
+            role="log"
+            aria-live="polite"
+          ></div>
+          <div
+            class="assistant-hints"
+            id="assistantHints"
+            aria-label="Suggested prompts"
+          ></div>
+          <div class="assistant-composer">
+            <div class="assistant-composer-inner">
+              <textarea
+                id="assistantInput"
+                rows="1"
+                placeholder="Ask for insights…"
+                aria-label="Ask the Insights Assistant"
+              ></textarea>
+              <button id="assistantSend" class="assistant-send" type="button">
+                <i data-lucide="send"></i>
+                <span>Send</span>
+              </button>
+            </div>
+            <div class="assistant-composer-meta">
+              <span>Runs offline with cached data</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+      <div class="bottom-bar">
+        <span>InsightTrack · Dashboard Pro</span>
+        <span>Local data · Shareable link ready</span>
+      </div>
+    </div>
+
+    <div id="exportOverlay" class="export-overlay" aria-hidden="true">
+      <div
+        class="export-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exportHeading"
+      >
+        <header class="export-panel__header">
+          <div>
+            <h2 id="exportHeading">Export Table</h2>
+            <p>
+              Preview the flattened brand performance data before exporting.
+            </p>
+          </div>
+          <div class="export-panel__actions">
+            <button id="downloadExportCsv" class="btn-primary" type="button">
+              <i data-lucide="file-down" class="w-4 h-4"></i>
+              Download CSV
+            </button>
+            <button id="closeExport" class="btn-secondary" type="button">
+              <i data-lucide="x" class="w-4 h-4"></i>
+              Close
+            </button>
+          </div>
+        </header>
+        <div
+          class="export-table-wrapper"
+          role="region"
+          aria-label="Export table preview"
+        >
+          <table class="export-table">
+            <thead>
+              <tr>
+                <th scope="col">Brand Group</th>
+                <th scope="col">Brand</th>
+                <th scope="col">Currency</th>
+                <th scope="col">SignUp Player</th>
+                <th scope="col">FTD Player</th>
+                <th scope="col">Total Deposit</th>
+                <th scope="col">Total Withdraw</th>
+                <th scope="col">Net Deposit</th>
+                <th scope="col">Ave DEP</th>
+                <th scope="col">Net Ratio %</th>
+                <th scope="col">Bonus</th>
+                <th scope="col">Bonus %</th>
+                <th scope="col">Ave Bonus / Player</th>
+                <th scope="col">Unique Player</th>
+                <th scope="col">Turnover</th>
+                <th scope="col">Ave Turnover</th>
+                <th scope="col">Ave WR</th>
+                <th scope="col">Gross Revenue %</th>
+                <th scope="col">NGR per Player</th>
+                <th scope="col">Net per Player</th>
+                <th scope="col">Net Win/Loss</th>
+                <th scope="col">Retention Rate %</th>
+                <th scope="col">FTD Conversion %</th>
+                <th scope="col">Company Win/Loss</th>
+              </tr>
+            </thead>
+            <tbody id="exportTableBody">
+              <tr>
+                <td class="export-empty" colspan="24">
+                  Run a search to populate the export view.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="settingsOverlay" class="settings-overlay">
+      <div class="settings-panel">
+        <header>
+          <span>Dashboard Settings</span>
+          <button id="closeSettings" class="btn-secondary">
+            <i data-lucide="x" class="w-4 h-4"></i>
+            Close
+          </button>
+        </header>
+        <section>
+          <label>Font Size</label>
+          <div class="control-row">
+            <button id="fontDown" class="btn-secondary">
+              <i data-lucide="minus" class="w-4 h-4"></i>
+            </button>
+            <span id="fontScaleDisplay" class="settings-chip">100%</span>
+            <button id="fontUp" class="btn-secondary">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </section>
+        <section>
+          <label>Negative Amount Color</label>
+          <div class="control-row">
+            <input
+              id="negativeColorPicker"
+              type="color"
+              class="h-10 w-16 rounded-md border border-slate-600/60 bg-transparent"
+            />
+          </div>
+        </section>
+        <section>
+          <label>Theme</label>
+          <div class="control-row" id="themeOptions"></div>
+        </section>
+      </div>
+    </div>
+
+    <script type="module" src="/dashboard-pro.js"></script>
+  </body>
+</html>

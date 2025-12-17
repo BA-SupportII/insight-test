@@ -1,0 +1,2140 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <base target="_top">
+        <meta charset="utf-8" />
+        <meta name="viewport"
+            content="width=device-width, initial-scale=1.0, minimum-scale=0.1, maximum-scale=10.0, user-scalable=yes, viewport-fit=cover">
+        <script src="https://unpkg.com/lucide@latest"></script>
+
+        <style>
+    /* =========================
+       THEME TOKENS (Light/Dark)
+       ========================= */
+    :root {
+      --bg: #f7f8fb;
+      --bg-soft: #ffffff;
+      --bg-elev: #ffffff;
+      --panel: #ffffff;
+      --panel-2: #f4f6f8;
+      --text: #0f172a;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+
+      --primary: #188661;          /* emerald */
+      --primary-100: #dcfce7;
+      --primary-200: #a7f3d0;
+
+      --accent: #011214;           /* cyan accent */
+      --accent-100: #cffafe;
+      --accent-200: #a5f3fc;
+
+      --warn: #f59e0b;             /* amber */
+      --danger: #ef4444;           /* red */
+      --danger-100: #fee2e2;
+
+      --gold: #d4a017;             /* gold accent */
+
+      /* ORANGE header/highlight palette (WCAG-friendly on black text) */
+      --orange-600:#e86d10;
+      --orange-500:#ff7a1a;
+      --orange-300:#ffb26b;
+      --orange-100:#fff1e6;
+
+      --header-bg-start:#ffffff;
+      --header-bg-end:#ffffff;
+      --header-fg:#000000; /* black text on white – best contrast */
+
+      --focus: 0 0 0 3px rgba(34, 211, 238, .4);
+      --ring: rgba(34, 211, 238, .45);
+      --shadow-1: 0 6px 20px rgba(2, 6, 23, .10);
+      --shadow-2: 0 12px 36px rgba(2, 6, 23, .12);
+
+      --code: #111827;
+      --nav-height: 64px;
+    }
+    body.theme-dark {
+      --bg: #2d2d2d;
+      --bg-soft: #3a3a3a;
+      --bg-elev: #404040;
+      --panel: #3a3a3a;
+      --panel-2: #454545;
+      --text: #ffffff;
+      --muted: #b0b0b0;
+      --border: #555555;
+
+      --primary: #4db8cc;
+      --primary-100: #1a5566;
+      --primary-200: #2d7a8f;
+
+      --accent: #ffffff;
+      --accent-100: #e0e0e0;
+      --accent-200: #d0d0d0;
+
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --danger-100: #3a1010;
+
+      --gold: #f3cc4b;
+
+      /* keep orange headers consistent in dark */
+      --header-bg-start:var(--orange-600);
+      --header-bg-end:var(--orange-300);
+      --header-fg:#0b0b0b;
+
+      --focus: 0 0 0 3px rgba(77, 184, 204, 0.5);
+      --ring: rgba(77, 184, 204, 0.45);
+      --shadow-1: 0 6px 20px rgba(0, 0, 0, .5);
+      --shadow-2: 0 12px 36px rgba(0, 0, 0, .6);
+
+      --code: #0b0d10;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+    }
+
+    html, body {
+      height: auto;
+      font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 10px 14px 16px;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow: auto;
+      font-size: clamp(14px, 2vw, 16px);
+      line-height: 1.7;
+      letter-spacing: 0.5px;
+      display: block;
+      transition: background .25s ease, color .25s ease, border-color .25s ease;
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-weight: 500;
+    }
+
+    /* ==== ORANGE HEADERS (ALL TABLES) ==== */
+    table th {
+      background: linear-gradient(135deg, #e86d10 0%, #ff8c1a 100%) !important;
+      color: #ffffff !important;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      cursor:pointer;
+      user-select:none;
+      border: 1px solid #d45a0a !important;
+      font-weight: 900 !important;
+      font-size: 20px !important;
+      padding: 16px;
+      text-align: center;
+      position: relative;
+      line-height: 1.6;
+    }
+    table th:hover {
+      background: linear-gradient(135deg, #d45a0a 0%, #f07c0a 100%) !important;
+    }
+    table th:first-child {
+      background: linear-gradient(135deg, #f5d76e 0%, #f3b63a 100%) !important;
+      color: #4a3600 !important;
+      border-color: #d4a017 !important;
+      font-size: 20px !important;
+      font-weight: 900 !important;
+    }
+    table th:first-child:hover {
+      background: linear-gradient(135deg, #f0d050 0%, #e8aa20 100%) !important;
+    }
+    table th:nth-child(2) {
+      background: linear-gradient(135deg, #f5d76e 0%, #f3b63a 100%) !important;
+      color: #4a3600 !important;
+      border-color: #d4a017 !important;
+      font-size: 20px !important;
+      font-weight: 900 !important;
+    }
+    table th:nth-child(2):hover {
+      background: linear-gradient(135deg, #f0d050 0%, #e8aa20 100%) !important;
+    }
+
+    .sort-icon {
+      display: inline-block;
+      margin-left: 6px;
+      width: 14px;
+      height: 14px;
+      vertical-align: middle;
+      opacity: 0.7;
+      transition: opacity 0.2s ease;
+    }
+
+    table th:hover .sort-icon {
+      opacity: 1;
+    }
+
+    .sort-icon.asc::after {
+      content: "↑";
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .sort-icon.desc::after {
+      content: "↓";
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .sort-icon.unsorted::after {
+      content: "⇅";
+      font-size: 11px;
+      opacity: 0.5;
+    }
+
+    /* Currency-specific header colors */
+    table th.currency-bdt { background: linear-gradient(135deg, #f5d76e 0%, #f3b63a 100%) !important; color: #4a3600 !important; border-color: #d4a017 !important; }
+    table th.currency-bdt:hover { background: linear-gradient(135deg, #f0d050 0%, #e8aa20 100%) !important; }
+    table th.currency-inr { background: linear-gradient(135deg, #e5d4ff 0%, #c4b1ff 100%) !important; color: #2d0f66 !important; border-color: #8b5cf6 !important; }
+    table th.currency-inr:hover { background: linear-gradient(135deg, #d9bfff 0%, #b299ff 100%) !important; }
+    table th.currency-pkr { background: linear-gradient(135deg, #b8f3c2 0%, #66d18f 100%) !important; color: #0b3b26 !important; border-color: #1f7a50 !important; }
+    table th.currency-pkr:hover { background: linear-gradient(135deg, #a0edb3 0%, #4ec97a 100%) !important; }
+    table th.currency-npr { background: linear-gradient(135deg, #b8f0ff 0%, #6ad0e8 100%) !important; color: #063a4a !important; border-color: #0e7490 !important; }
+    table th.currency-npr:hover { background: linear-gradient(135deg, #9eeaff 0%, #50c8e8 100%) !important; }
+    table th.currency-php { background: linear-gradient(135deg, #d4e1ff 0%, #9ab6ff 100%) !important; color: #0b2c78 !important; border-color: #2563eb !important; }
+    table th.currency-php:hover { background: linear-gradient(135deg, #bfd4ff 0%, #80a8ff 100%) !important; }
+    table th.currency-vnd { background: linear-gradient(135deg, #ffd6c4 0%, #ff9f7f 100%) !important; color: #5c1a0c !important; border-color: #d64027 !important; }
+    table th.currency-vnd:hover { background: linear-gradient(135deg, #ffccb3 0%, #ff8f6a 100%) !important; }
+    table th.currency-mmk { background: linear-gradient(135deg, #ffe6b8 0%, #ffc94d 100%) !important; color: #5c3000 !important; border-color: #d97706 !important; }
+    table th.currency-mmk:hover { background: linear-gradient(135deg, #ffdda3 0%, #ffbb20 100%) !important; }
+    table th.currency-thb { background: linear-gradient(135deg, #f1d8ff 0%, #d39bff 100%) !important; color: #3a0b66 !important; border-color: #a855f7 !important; }
+    table th.currency-thb:hover { background: linear-gradient(135deg, #e8cbff 0%, #c483ff 100%) !important; }
+    table th.currency-usd { background: linear-gradient(135deg, #bdeff7 0%, #81d2e2 100%) !important; color: #053447 !important; border-color: #0ea5e9 !important; }
+    table th.currency-usd:hover { background: linear-gradient(135deg, #a3e7f5 0%, #62cbe8 100%) !important; }
+    table th.currency-aed { background: linear-gradient(135deg, #c7f3dd 0%, #6fe7aa 100%) !important; color: #0c3a1d !important; border-color: #15803d !important; }
+    table th.currency-aed:hover { background: linear-gradient(135deg, #b3efd2 0%, #56dfaf 100%) !important; }
+    table th.currency-lkr { background: linear-gradient(135deg, #ffd4e0 0%, #ff9cba 100%) !important; color: #5f0a20 !important; border-color: #e11d48 !important; }
+    table th.currency-lkr:hover { background: linear-gradient(135deg, #ffc4d6 0%, #ff88ac 100%) !important; }
+    table th.type-column {
+      background: linear-gradient(135deg, #81d2e2 0%, #62cbe8 100%) !important;
+      color: #053447 !important;
+      border-color: #0ea5e9 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 13px;
+      padding: 12px;
+      font-weight: 900;
+    }
+    td.type-column-cell {
+      text-align: left;
+      white-space: normal;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+
+    /* Brand Daily Modal Header Styling */
+    .brand-daily-modal-header h2 {
+      background: linear-gradient(135deg, #ffd700 0%, #ffed4e 25%, #ffc700 50%, #ff9800 75%, #e67e00 100%);
+      color: #4a3200;
+      padding: 8px 16px;
+      border-radius: 18px;
+      font-weight: 900;
+      font-size: 16px;
+      letter-spacing: 0.6px;
+      margin: 0;
+      box-shadow: 0 10px 28px rgba(255, 215, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.2), inset 0 2px 0 rgba(255, 255, 255, 0.7);
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-transform: uppercase;
+      position: relative;
+      overflow: visible;
+      white-space: nowrap;
+    }
+    .brand-daily-modal-header h2::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, transparent 100%);
+      pointer-events: none;
+      border-radius: 24px 24px 0 0;
+      z-index: 0;
+    }
+    .header-section-left, .header-section-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+      z-index: 1;
+      flex: 0 0 auto;
+    }
+
+    .header-section-left i {
+      width: 18px;
+      height: 18px;
+    }
+
+    .header-divider {
+      width: 2px;
+      height: 28px;
+      background: linear-gradient(180deg, rgba(74, 50, 0, 0.2) 0%, rgba(74, 50, 0, 0.4) 50%, rgba(74, 50, 0, 0.2) 100%);
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+    }
+
+    .brand-daily-modal-header h2 i {
+      position: relative;
+      z-index: 1;
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .brand-daily-modal-header h2 .brand-state-label {
+      display: inline-block;
+      position: relative;
+      z-index: 1;
+      font-size: 17px;
+      letter-spacing: 0.8px;
+      white-space: nowrap;
+    }
+    .brand-daily-modal-header h2 svg {
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+    }
+    .brand-daily-modal-header h2 .brand-date-label {
+      display: inline-block;
+      position: relative;
+      z-index: 1;
+      font-size: 17px;
+      letter-spacing: 0.8px;
+      white-space: nowrap;
+    }
+
+    .brand-daily-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 10px;
+      padding: 0;
+    }
+
+    .brand-daily-modal-header h2 {
+      margin: 0;
+      flex-shrink: 0;
+    }
+
+    .header-controls-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0;
+      margin: 0;
+      flex-shrink: 0;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .filter-group label {
+      font-weight: 900;
+      font-size: 10px;
+      color: #4a3200;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.8;
+      display: none;
+    }
+
+    /* Brand Dropdown Menu */
+    .menu {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #000000;
+      width: fit-content;
+      display: flex;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      position: relative;
+      z-index: 100;
+    }
+
+    .menu a {
+      text-decoration: none;
+      color: inherit;
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+    }
+
+    .menu .link {
+       position: relative;
+       display: flex;
+       align-items: center;
+       justify-content: center;
+       gap: 12px;
+       padding: 10px 16px;
+       border-radius: 12px;
+       overflow: hidden;
+       transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+       color: #3a2a00;
+       background: linear-gradient(135deg, #f3cc4b 0%, #ffd86a 100%);
+       border: 2px solid #d4a017;
+       font-weight: 900;
+       box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .menu .link span {
+       text-align: center;
+    }
+
+    .menu-icon {
+       width: 16px;
+       height: 16px;
+       color: #3a2a00;
+       flex-shrink: 0;
+    }
+    
+    .menu .link svg {
+       margin-left: auto;
+    }
+
+    .menu .link::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #d4a017;
+      z-index: -1;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .menu .link svg {
+      width: 14px;
+      height: 14px;
+      fill: #000000;
+      transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .menu .item {
+      position: relative;
+      z-index: 100;
+    }
+
+    .menu .item .submenu {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: absolute;
+      top: 100%;
+      border-radius: 0 0 16px 16px;
+      left: 0;
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid #cccccc;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-12px);
+      transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+      z-index: 1000;
+      pointer-events: none;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    .menu .item:hover .submenu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      pointer-events: auto;
+      border-top: transparent;
+      border-color: #d4a017;
+    }
+
+    .menu .item:hover .link {
+       color: #3a2a00;
+       border-radius: 16px 16px 0 0;
+    }
+
+    .menu .item:hover .link::after {
+       transform: scaleX(0);
+       transform-origin: right;
+    }
+
+    .menu .item:hover .link svg {
+       fill: #3a2a00;
+       transform: rotate(-180deg);
+    }
+
+    .submenu .submenu-item {
+      width: 100%;
+      transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .submenu .submenu-link {
+      display: block;
+      padding: 12px 24px;
+      width: 100%;
+      position: relative;
+      text-align: center;
+      transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+      color: #000000;
+      text-decoration: none;
+    }
+
+    .submenu .submenu-item:last-child .submenu-link {
+      border-bottom: none;
+    }
+
+    .submenu .submenu-link::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform: scaleX(0);
+      width: 100%;
+      height: 100%;
+      background-color: #d4a017;
+      z-index: -1;
+      transform-origin: left;
+      transition: transform 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .submenu .submenu-link:hover:before {
+      transform: scaleX(1);
+      transform-origin: right;
+    }
+
+    .submenu .submenu-link:hover {
+      color: #ffffff;
+    }
+
+    .filter-select {
+      display: none;
+    }
+
+    .date-range {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .date-range label {
+      display: flex;
+      align-items: center;
+      color: #4a3200;
+    }
+
+    .date-range label svg {
+      color: #4a3200;
+      stroke: #4a3200;
+    }
+
+    .date-range-picker-container {
+       position: relative;
+       flex-shrink: 0;
+       display: flex;
+       align-items: center;
+       gap: 0;
+    }
+
+    .date-range-icon {
+       color: #3a2a00;
+       stroke: #3a2a00;
+       flex-shrink: 0;
+    }
+
+    .date-range-expand-icon {
+       color: #3a2a00;
+       stroke: #3a2a00;
+       flex-shrink: 0;
+       transition: transform 0.3s ease;
+    }
+
+    .date-range-picker-container.active .date-range-expand-icon {
+       transform: translateY(-50%) rotate(180deg);
+    }
+
+    .date-range-display {
+       padding: 12px 40px 12px 40px;
+       border: 2px solid #d4a017;
+       border-radius: 12px;
+       background: linear-gradient(135deg, #f3cc4b 0%, #ffd86a 100%);
+       color: #3a2a00;
+       font-weight: 900;
+       font-size: 14px;
+       cursor: pointer;
+       transition: all .2s ease;
+       box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+       white-space: nowrap;
+       min-width: fit-content;
+       width: auto;
+       max-width: none;
+       font-family: inherit;
+       box-sizing: border-box;
+    }
+
+    .date-range-display:hover {
+       background: linear-gradient(135deg, #ffd86a 0%, #f3cc4b 100%);
+       box-shadow: 0 0 0 2px rgba(255,255,255,.5), 0 6px 16px rgba(212,160,23,0.35);
+    }
+
+    .date-range-display:focus {
+       outline: none;
+       background: linear-gradient(135deg, #ffd86a 0%, #f3cc4b 100%);
+       box-shadow: 0 0 0 2px rgba(255,255,255,.5), 0 0 0 3px rgba(212,160,23,0.2);
+    }
+
+    .date-range-display::-webkit-autofill {
+       -webkit-box-shadow: 0 0 0 1000px linear-gradient(135deg, #f3cc4b 0%, #ffd86a 100%) inset;
+       -webkit-text-fill-color: #3a2a00;
+    }
+
+    .date-range-display::placeholder {
+       color: #000000;
+       opacity: 1;
+    }
+
+    .date-range-display::-webkit-input-placeholder {
+       color: #000000;
+       opacity: 1;
+    }
+
+    .date-range-display::-moz-placeholder {
+       color: #000000;
+       opacity: 1;
+    }
+
+    .date-range-popup {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 8px;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      padding: 16px;
+      min-width: 320px;
+    }
+
+    .quick-ranges {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e5e7eb;
+      justify-content: flex-start;
+    }
+
+    .quick-range-btn {
+      padding: 8px 16px;
+      border: 1px solid #d4a017;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #5c4200;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: capitalize;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .quick-range-btn:hover {
+      border-color: #f3cc4b;
+      background: #fffbf0;
+      box-shadow: 0 2px 8px rgba(212, 160, 23, 0.15);
+    }
+
+    .quick-range-btn.active {
+      background: #d4a017;
+      color: #ffffff;
+      border-color: #d4a017;
+      box-shadow: 0 2px 8px rgba(212, 160, 23, 0.25);
+    }
+
+    .calendar-container {
+      font-family: 'Segoe UI', 'Roboto', sans-serif;
+    }
+
+    .calendar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      gap: 8px;
+    }
+
+    .calendar-nav-btn {
+      background: none;
+      border: none;
+      color: #4a3200;
+      font-size: 24px;
+      cursor: pointer;
+      font-weight: 700;
+      padding: 0 8px;
+      transition: color .2s ease;
+    }
+
+    .calendar-nav-btn:hover {
+      color: #ff9800;
+    }
+
+    .calendar-title {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .month-select, .year-select {
+      padding: 6px 8px;
+      border: 1px solid #d4a017;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #4a3200;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .month-select:focus, .year-select:focus {
+      outline: none;
+      border-color: #ff9800;
+      box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.1);
+    }
+
+    .calendar-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .calendar-weekdays div {
+      font-weight: 700;
+      color: #4a3200;
+      font-size: 12px;
+      padding: 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .calendar-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .calendar-day {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #4a3200;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+
+    .calendar-day:hover:not(.disabled) {
+      background: #fff1e6;
+      border-color: #ffb26b;
+    }
+
+    .calendar-day.other-month {
+      color: #b0b0b0;
+      cursor: default;
+    }
+
+    .calendar-day.selected {
+      background: linear-gradient(135deg, #ff9800 0%, #ff7a1a 100%);
+      color: #ffffff;
+      border-color: #ff7a1a;
+      font-weight: 800;
+    }
+
+    .calendar-day.in-range {
+      background: #fff1e6;
+      border-color: transparent;
+    }
+
+    .calendar-day.range-start,
+    .calendar-day.range-end {
+      background: linear-gradient(135deg, #ff9800 0%, #ff7a1a 100%);
+      color: #ffffff;
+      border-color: #ff7a1a;
+    }
+
+    .calendar-day.disabled {
+      color: #e5e7eb;
+      cursor: not-allowed;
+    }
+
+    .calendar-day:active:not(.disabled) {
+      transform: scale(0.95);
+    }
+
+    .brand-daily-modal-actions {
+      display: flex;
+      gap: 8px;
+      margin: 0;
+      align-items: center;
+    }
+
+    .brand-daily-modal-actions button {
+       padding: 10px 16px;
+       background: linear-gradient(135deg, #f3cc4b 0%, #ffd86a 100%);
+       border: 2px solid #d4a017;
+       color: #3a2a00;
+       cursor: pointer;
+       border-radius: 12px;
+       transition: all .3s ease;
+       font-weight: 900;
+       font-size: 12px;
+       display: flex;
+       align-items: center;
+       gap: 8px;
+       box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+       text-transform: uppercase;
+       letter-spacing: 0.5px;
+    }
+
+    .brand-daily-modal-actions button:hover {
+       background: linear-gradient(135deg, #ffd86a 0%, #f3cc4b 100%);
+       box-shadow: 0 0 0 2px rgba(255,255,255,.5), 0 8px 20px rgba(0,0,0,0.3);
+       transform: translateY(-2px);
+    }
+
+    .brand-daily-modal-actions button:active {
+      transform: translateY(0);
+    }
+
+    .brand-daily-modal-actions button i {
+       width: 18px;
+       height: 18px;
+       color: #d4a017;
+       stroke: #d4a017;
+    }
+
+    .brand-daily-modal-actions button:hover i {
+       color: #3a2a00;
+       stroke: #3a2a00;
+    }
+
+    .loader-indicator {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--panel);
+      border: 1.5px solid #d4a017;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35), 0 6px 12px rgba(0, 0, 0, 0.2);
+      opacity: 0;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      pointer-events: none;
+      color: #f3cc4b;
+    }
+
+    .loader-indicator.active {
+      opacity: 1;
+      transform: scale(1.05);
+      pointer-events: auto;
+    }
+
+    .loader-indicator i,
+    .loader-indicator svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .loader-indicator.active i,
+    .loader-indicator.active svg {
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .brand-daily-modal-close {
+      font-size: 24px;
+      padding: 4px 10px !important;
+      line-height: 1;
+    }
+
+    /* Total row styling in Brand Daily Table */
+    table tbody tr.total-row,
+    table tfoot tr.total-row {
+      background: linear-gradient(180deg, #ffd700 0%, #ffed4e 25%, #ffc700 50%, #ff9800 75%, #e67e00 100%) !important;
+      color: #4a3200 !important;
+      font-weight: 900 !important;
+      font-size: 16px !important;
+      box-shadow: 0 -4px 16px rgba(255, 215, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+      position: relative;
+    }
+    table tbody tr.total-row::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
+      pointer-events: none;
+    }
+    table tbody tr.total-row td,
+    table tfoot tr.total-row td {
+      background: transparent !important;
+      color: #4a3200 !important;
+      border-color: rgba(74, 50, 0, 0.2) !important;
+      font-weight: 900 !important;
+      position: relative;
+      z-index: 1;
+      padding: 14px;
+      text-align: center;
+      border: 1px solid var(--border);
+      font-size: 16px !important;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--bg-soft);
+      border-radius: 12px;
+      box-shadow: var(--shadow-1);
+      border: 1px solid var(--border);
+      margin: 0;
+    }
+
+    table td {
+      border: 1px solid var(--border);
+      padding: 12px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      transition: background .2s, color .2s;
+      white-space: nowrap;
+      background: var(--panel);
+    }
+
+    table tr:nth-child(even) td {
+      background: var(--panel-2);
+    }
+
+    table tr:hover td {
+      filter: brightness(0.98);
+      background: inherit !important;
+      color: inherit !important;
+    }
+
+    @keyframes scanShimmer {
+      0% { background-position: -1000px 0; }
+      100% { background-position: 1000px 0; }
+    }
+
+    .brand-badge {
+      display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px;
+      background: linear-gradient(135deg, #f3cc4b, #ffd86a);
+      border:2px solid #d4a017;
+      color: #3a2a00; font-weight:800; font-size:13px; position:relative; overflow:hidden;
+      box-shadow: 0 0 0 2px rgba(255,255,255,.35), 0 4px 12px rgba(0,0,0,0.25);
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .brand-card {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 160px;
+      height: 56px;
+      border-radius: 20px;
+      border: 1px solid rgba(0, 0, 0, 0.25);
+      box-shadow: inset 0 3px 6px rgba(255, 255, 255, 0.35), inset 0 -2px 10px rgba(0, 0, 0, 0.35), 0 10px 20px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+      padding: 0;
+      position: relative;
+    }
+    .brand-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), transparent 70%);
+      pointer-events: none;
+    }
+    .brand-card img {
+      width: auto;
+      height: 46px;
+      max-width: 100%;
+      display: block;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+    }
+    .type-summary {
+       margin: 0;
+       display: flex;
+       flex-direction: column;
+       gap: 4px;
+       font-size: 18px;
+       line-height: 1.6;
+       font-weight: 800;
+       text-align: center;
+       align-items: center;
+       justify-content: center;
+       text-transform: uppercase;
+       letter-spacing: 0.4px;
+    }
+    .type-summary span {
+       display: block;
+       width: 100%;
+    }
+    .type-summary span.deposit-type {
+       color: rgb(0, 7, 6);
+       font-size: 18px;
+    }
+    .type-summary span.withdrawal-type {
+       color: #00617c;
+       font-size: 18px;
+       display: none;
+    }
+    .type-summary span.net-type {
+       color: #1f801f;
+       font-size: 18px;
+    }
+    .type-summary span.net-type.negative {
+       color: #1f801f;
+    }
+    .currency-summary {
+       margin: 0;
+       display: flex;
+       flex-direction: column;
+       gap: 4px;
+       align-items: center;
+    }
+    .currency-summary span {
+       font-size: 25px;
+       line-height: 1.8;
+       font-weight: 700;
+       text-align: center;
+       letter-spacing: 0.3px;
+       min-width: 90px;
+       font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    }
+    .currency-summary span.deposit-line {
+       color: rgb(0, 0, 7);
+    }
+    .currency-summary span.withdrawal-line {
+       color: #00617c;
+       display: none;
+    }
+    .currency-summary span.net-line {
+       color: #1f801f;
+    }
+    .currency-summary span.net-line.negative {
+       color: #d64027;
+    }
+    .brand-badge::before{
+      content:''; position:absolute; top:0; left:-40%; width:40%; height:100%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.45), rgba(255,255,255,0));
+      transform: skewX(-18deg);
+      animation: shine 2.6s linear infinite;
+    }
+
+    .currency-badge-header {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      padding:6px 16px;
+      border-radius:999px;
+      background: linear-gradient(45deg, var(--badge-bg-start, #f3cc4b), var(--badge-bg-end, #ffd86a));
+      border:2px solid var(--badge-border, #d4a017);
+      color: var(--badge-text, #3a2a00);
+      font-weight:900;
+      font-size:14px;
+      position:relative;
+      overflow:hidden;
+      box-shadow: 0 0 0 2px rgba(255,255,255,.35), 0 8px 14px var(--badge-shadow, rgba(0,0,0,0.25));
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      min-width: 90px;
+    }
+    .currency-badge-header .currency-code {
+      font-size: 25px;
+      letter-spacing: 0.15px;
+    }
+    .currency-badge-header .currency-symbol {
+      font-size: 25px;
+      color: rgba(0, 0, 0, 0.65);
+    }
+    .column-badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:6px 14px;
+      border-radius:6px;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      font-weight: 900;
+      font-size: inherit;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.5);
+    }
+    .brand-badge-header {
+      background: linear-gradient(135deg, #f5d76e 0%, #f3b63a 100%);
+      color: #4a3600;
+      border: 2px solid #d4a017;
+      gap: 6px;
+    }
+    .type-badge-header {
+      background: linear-gradient(135deg, #f5d76e 0%, #f3b63a 100%);
+      color: #4a3600;
+      border: 2px solid #d4a017;
+      gap: 6px;
+    }
+    .currency-badge::after{
+      content:''; position:absolute; top:0; left:-40%; width:40%; height:100%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.45), rgba(255,255,255,0));
+      transform: skewX(-18deg);
+      animation: shine 2.6s linear infinite;
+    }
+    .currency-badge .badge-icon{ width:16px; height:16px; stroke-width:2.4; color: var(--badge-icon, #e86d10); }
+
+    @keyframes badgePulse {
+      0%, 100% { filter: brightness(1) drop-shadow(0 0 4px currentColor); }
+      50% { filter: brightness(1.08) drop-shadow(0 0 8px currentColor); }
+    }
+
+    .badge-icon {
+      width: 16px;
+      height: 16px;
+    }
+        </style>
+    </head>
+    <body>
+        <div class="brand-daily-modal-header">
+            <h2>
+                <span class="header-section-left">
+                    <i data-lucide="users" style="width: 22px; height: 22px; display: inline-block; vertical-align: middle; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); color: #4a3200 !important; stroke: #4a3200 !important; fill: #4a3200 !important;"></i>
+                    <span class="brand-state-label">CX Group Daily State</span>
+                </span>
+            </h2>
+
+            <div class="header-controls-section">
+                <div class="filter-group">
+                    <label for="brandGroupFilter">Brand / Group</label>
+                    <div class="menu">
+                        <div class="item">
+                            <a href="#" class="link">
+                                <i data-lucide="layers" class="menu-icon"></i>
+                                <span>Brand Groups</span>
+                                <svg viewBox="0 0 360 360" xml:space="preserve">
+                                    <g id="SVGRepo_iconCarrier">
+                                        <path id="XMLID_225_" d="M325.607,79.393c-5.857-5.857-15.355-5.858-21.213,0.001l-139.39,139.393L25.607,79.393 c-5.857-5.857-15.355-5.858-21.213,0.001c-5.858,5.858-5.858,15.355,0,21.213l150.004,150c2.813,2.813,6.628,4.393,10.606,4.393 s7.794-1.581,10.606-4.394l149.996-150C331.465,94.749,331.465,85.251,325.607,79.393z"></path>
+                                    </g>
+                                </svg>
+                            </a>
+                            <div class="submenu">
+                                <div class="submenu-item">
+                                    <a href="#" class="submenu-link" data-value="">Brand Groups</a>
+                                </div>
+                                <div class="submenu-item">
+                                    <a href="#" class="submenu-link" data-value="cx">CX</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-group date-range">
+                    <div class="date-range-picker-container">
+                        <input type="text" id="dateRangeDisplay" class="date-range-display" placeholder="Select Date Range" readonly>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="date-range-icon" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="date-range-expand-icon" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none;">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                        <div class="date-range-popup" id="dateRangePopup" style="display: none;">
+                            <div class="quick-ranges">
+                                <button class="quick-range-btn" id="todayBtn">Today</button>
+                                <button class="quick-range-btn" id="yesterdayBtn">Yesterday</button>
+                            </div>
+                            <div class="calendar-container">
+                                <div class="calendar-header">
+                                    <button class="calendar-nav-btn" id="prevMonth">‹</button>
+                                    <div class="calendar-title">
+                                        <select id="monthSelect" class="month-select"></select>
+                                        <select id="yearSelect" class="year-select"></select>
+                                    </div>
+                                    <button class="calendar-nav-btn" id="nextMonth">›</button>
+                                </div>
+                                <div class="calendar-weekdays">
+                                    <div>Sun</div>
+                                    <div>Mon</div>
+                                    <div>Tue</div>
+                                    <div>Wed</div>
+                                    <div>Thu</div>
+                                    <div>Fri</div>
+                                    <div>Sat</div>
+                                </div>
+                                <div class="calendar-days" id="calendarDays"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="brand-daily-modal-actions">
+                    <button id="btnExport" title="Export data">
+                        <i data-lucide="download" aria-hidden="true"></i>
+                        <span>Export</span>
+                    </button>
+                    <div id="loadingIndicator" class="loader-indicator" aria-hidden="true" title="Loading data">
+                        <i data-lucide="refresh-cw" aria-hidden="true"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <table id="cxgroupTable">
+            <thead>
+                <tr>
+                    <th class="sortable brand-header" data-column="brand">
+                        <span class="column-badge brand-badge-header"><i data-lucide="briefcase" class="badge-icon"></i>Brand<span class="sort-icon unsorted"></span></span>
+                    </th>
+                    <th class="type-column type-header">
+                        <span class="column-badge type-badge-header"><i data-lucide="list" class="badge-icon"></i>Type</span>
+                    </th>
+                    <th class="currency-bdt sortable" data-column="bdt" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">BDT</span>
+                            <span class="currency-symbol" data-currency="BDT"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-inr sortable" data-column="inr" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">INR</span>
+                            <span class="currency-symbol" data-currency="INR"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-pkr sortable" data-column="pkr" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">PKR</span>
+                            <span class="currency-symbol" data-currency="PKR"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-npr sortable" data-column="npr" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">NPR</span>
+                            <span class="currency-symbol" data-currency="NPR"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-php sortable" data-column="php" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">PHP</span>
+                            <span class="currency-symbol" data-currency="PHP"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-vnd sortable" data-column="vnd" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">VND</span>
+                            <span class="currency-symbol" data-currency="VND"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-mmk sortable" data-column="mmk" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">MMK</span>
+                            <span class="currency-symbol" data-currency="MMK"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-thb sortable" data-column="thb" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">THB</span>
+                            <span class="currency-symbol" data-currency="THB"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-usd sortable" data-column="usd" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">USD</span>
+                            <span class="currency-symbol" data-currency="USD"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-aed sortable" data-column="aed" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">AED</span>
+                            <span class="currency-symbol" data-currency="AED"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-lkr sortable" data-column="lkr" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">LKR</span>
+                            <span class="currency-symbol" data-currency="LKR"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td class="brand-total-cell"><span class="brand-badge">Total</span></td>
+                    <td class="type-column-cell">
+                        <div class="type-summary">
+                            <span>Deposit: --</span>
+                            <span>Withdrawal: --</span>
+                            <span>Net Deposit: --</span>
+                        </div>
+                    </td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3"></script>
+        <script>
+            // Initialize Lucide icons
+            lucide.createIcons();
+
+            const CURRENCY_SYMBOLS = {
+                BDT: '৳',
+                INR: '₹',
+                NPR: '₨',
+                AED: 'د.إ',
+                USD: '$',
+                LKR: 'Rs',
+                PKR: '₨',
+                VND: '₫',
+                THB: '฿',
+                PHP: '₱',
+                MMK: 'Ks',
+                MYR: 'RM',
+                KRW: '₩',
+                OMR: 'ر.ع.',
+                SAR: '﷼',
+                CNY: '¥',
+                AUD: 'A$',
+                SGD: 'S$',
+                BRL: 'R$',
+                HKD: 'HK$',
+                IDR: 'Rp',
+                TRY: '₺',
+                CAD: 'C$'
+            };
+
+            function applyCurrencySymbols() {
+                const symbolNodes = document.querySelectorAll('.currency-symbol');
+                symbolNodes.forEach((node) => {
+                    const code = node.getAttribute('data-currency');
+                    if (!code) return;
+                    const symbol = CURRENCY_SYMBOLS[code.toUpperCase()];
+                    node.textContent = symbol ? `(${symbol})` : '';
+                });
+            }
+
+            applyCurrencySymbols();
+
+            const DISPLAY_CURRENCIES = ['BDT', 'INR', 'PKR', 'NPR', 'PHP', 'VND', 'MMK', 'THB', 'USD', 'AED', 'LKR'];
+            const metricsTableBody = document.querySelector('#cxgroupTable tbody');
+            const totalsRow = document.querySelector('#cxgroupTable tfoot .total-row');
+            const TOTAL_COLUMNS = DISPLAY_CURRENCIES.length + 2;
+            const numberFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const percentFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const BRAND_OVERRIDES = {
+                MB: {
+                    label: 'BetJili',
+                    logo: 'https://img.m156b.com/mb/h5/assets/images/dark/logo.png?v=1763527328096',
+                    background: '#242629'
+                },
+                BVS: {
+                    label: 'BetVisa',
+                    logo: 'https://www.betvisainfo.com/wp-content/uploads/2023/12/cropped-logo-light.white_.png',
+                    background: '#1a1a2e'
+                },
+                GA: {
+                    label: 'GA123',
+                    logo: 'https://img.g729a.com/ga/h5/assets/images/dark/logo.png?v=1234567890',
+                    background: '#151A22'
+                },
+                CX: {
+                    label: 'CRICKEX',
+                    logo: 'https://img.c88rx.com/cx/h5/assets/images/logo.png?v=1763528964246',
+                    background: '#04275f'
+                },
+                MP: {
+                    label: 'MostPlay',
+                    logo: 'https://img.m2911p.com/mp/h5/assets/images/logo.png?v=1763527342717',
+                    background: '#1e14a6'
+                },
+                JWB: {
+                    label: 'JeetWin',
+                    logo: 'https://download.ocms365.com/v2/JEETWIN/images/logo-dark.webp',
+                    background: '#1a1f3a'
+                },
+                DP: {
+                    label: 'DarazPlay',
+                    logo: 'https://img.d4040p.com/dp/h5/assets/images/logo.png?v=1761024071764',
+                    background: 'linear-gradient(180deg, #0B7A2A 0%, #0E9F6E 100%)'
+                },
+                JTB: {
+                    label: 'JeetBangla',
+                    logo: 'https://img.j505tb.com/jtb/h5/assets/images/logo.png?v=1761024108847',
+                    background: '#1F232B'
+                },
+                HB: {
+                    label: 'HeyBaJi',
+                    logo: 'https://img.h4408b.com/hb/h5/assets/images/logo.png?v=1761024087166',
+                    background: '#132033'
+                },
+                KV: {
+                    label: 'KheloVIP',
+                    logo: 'https://img.k4307v.com/kv/h5/assets/images/logo.png?v=1761024073741',
+                    background: 'linear-gradient(180deg, #4A2600 0%, #6B3A00 100%)'
+                },
+                SB: {
+                    label: 'SuperBaJi',
+                    logo: 'https://img.s628b.com/sb/h5/assets/images/logo.png?v=1761024116679',
+                    background: '#1E3A8A'
+                },
+                SLB: {
+                    label: 'SlotBaJi',
+                    logo: 'https://img.s6115lb.com/slb/h5/assets/images/logo.png?v=1761024130905',
+                    background: '#0A3E47'
+                },
+                BJD: {
+                    label: 'BetBJD',
+                    logo: 'https://img.b6814jd.com/bjd/h5/assets/images/logo.png?v=176102413668',
+                    background: 'linear-gradient(180deg, #111318 0%, #1A1D23 100%)'
+                },
+                VB: {
+                    label: 'JeetWay',
+                    logo: 'https://img.v66b.com/vb/h5/assets/images/logo.png?v=1764671345040',
+                    background: '#181C23'
+                },
+                BN88: {
+                    label: 'BetNaga',
+                    logo: 'https://betnaga88.net/wp-content/themes/betnaga/img/logo.png',
+                    background: 'linear-gradient(180deg, #111318 0%, #1A1D23 100%)'
+                }
+            };
+            let selectedBrandGroupKey = (window.brandGroupFilter || 'cx').toLowerCase();
+            let selectedBrandGroupLabel = 'CX';
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            let startDate = formatDate(yesterdayDate);
+            let endDate = startDate;
+            let activeFetchId = 0;
+
+            function normalizeGroupValue(value) {
+                return String(value || '').trim().toLowerCase();
+            }
+
+            function formatDisplayNumber(value) {
+                if (value === null || value === undefined || Number.isNaN(value)) return '--';
+                return numberFormatter.format(Number(value));
+            }
+
+            function formatPercent(value) {
+                if (value === null || value === undefined || Number.isNaN(value)) return '--';
+                if (!Number.isFinite(value)) return '--';
+                return `${percentFormatter.format(Number(value))}%`;
+            }
+
+            function getCurrencySymbol(ccy) {
+                if (!ccy) return '';
+                return CURRENCY_SYMBOLS[String(ccy).toUpperCase()] || '';
+            }
+
+            function formatCurrencyValue(value, ccy) {
+                const formatted = formatDisplayNumber(value);
+                return formatted;
+            }
+
+            function formatNetLine(deposit, withdrawal, ccy) {
+                const netValue = deposit - withdrawal;
+                const base = formatCurrencyValue(netValue, ccy);
+                if (!deposit || Number(deposit) === 0) {
+                    return base;
+                }
+                const ratio = (netValue / deposit) * 100;
+                if (!Number.isFinite(ratio)) return base;
+                const percent = formatPercent(ratio);
+                const rtlCcys = ['AED', 'SAR', 'OMR'];
+                if (rtlCcys.includes(ccy)) {
+                    return `\u202A(${percent}) ${base}\u202C`;
+                }
+                return `${base} (${percent})`;
+            }
+
+            function setTableMessage(message) {
+                if (!metricsTableBody) return;
+                metricsTableBody.innerHTML = '';
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.setAttribute('colspan', TOTAL_COLUMNS);
+                td.style.textAlign = 'center';
+                td.style.padding = '32px 0';
+                td.style.fontWeight = '700';
+                td.textContent = message;
+                tr.appendChild(td);
+                metricsTableBody.appendChild(tr);
+                resetTotalsRow();
+            }
+
+            function createTypeLabelMarkup(isNetNegative = false) {
+                const netClass = isNetNegative ? 'type-line net-type negative' : 'type-line net-type';
+                return `<div class="type-summary">
+                    <span class="type-line deposit-type">Deposit</span>
+                    <span class="type-line withdrawal-type">Withdrawal</span>
+                    <span class="${netClass}">Net Deposit</span>
+                </div>`;
+            }
+
+            function resetTotalsRow() {
+                if (!totalsRow) return;
+                const cells = totalsRow.querySelectorAll('td');
+                if (cells.length < 2) return;
+                cells[0].innerHTML = `<span class="brand-badge">Total</span>`;
+                cells[1].innerHTML = createTypeLabelMarkup();
+                DISPLAY_CURRENCIES.forEach((_, idx) => {
+                    const cell = cells[idx + 2];
+                    if (cell) cell.textContent = '--';
+                });
+            }
+
+            function clearMetricsTable() {
+                if (!metricsTableBody) return;
+                metricsTableBody.innerHTML = '';
+            }
+
+            function setLoadingState(isLoading) {
+                if (!loadingIndicator) return;
+                loadingIndicator.classList.toggle('active', Boolean(isLoading));
+                loadingIndicator.setAttribute('aria-hidden', !isLoading);
+            }
+
+            function renderBrandCell(brandCode, fallbackLabel) {
+                const code = String(brandCode || '').toUpperCase();
+                const config = BRAND_OVERRIDES[code];
+                if (!config) {
+                    return `<span class="brand-badge">${(fallbackLabel || code || 'N/A').toUpperCase()}</span>`;
+                }
+                const logo = config.logo ? `<img src="${config.logo}" alt="${config.label}" loading="lazy">` : '';
+                return `<div class="brand-card" style="background:${config.background};">${logo}</div>`;
+            }
+
+            function updateTotalsRow(currencyTotals = {}, totals = { deposit: 0, withdrawal: 0 }) {
+                if (!totalsRow) return;
+                const cells = totalsRow.querySelectorAll('td');
+                if (cells.length < 2) return;
+                const net = totals.deposit - totals.withdrawal;
+                cells[0].innerHTML = `<span class="brand-badge">Total</span>`;
+                cells[1].innerHTML = createTypeLabelMarkup(net < 0);
+                DISPLAY_CURRENCIES.forEach((ccy, idx) => {
+                    const cell = cells[idx + 2];
+                    if (!cell) return;
+                    const totalsForCurrency = currencyTotals?.[ccy] || { deposit: 0, withdrawal: 0 };
+                    const depositValue = Number(totalsForCurrency.deposit) || 0;
+                    const withdrawalValue = Number(totalsForCurrency.withdrawal) || 0;
+                    const netValue = depositValue - withdrawalValue;
+                    const netClass = netValue < 0 ? 'net-line negative' : 'net-line';
+                    const depositText = formatCurrencyValue(depositValue, ccy);
+                    const withdrawalText = formatCurrencyValue(withdrawalValue, ccy);
+                    const netText = formatNetLine(depositValue, withdrawalValue, ccy);
+                    cell.innerHTML = `<div class="currency-summary">
+                            <span class="deposit-line">${depositText}</span>
+                            <span class="withdrawal-line">${withdrawalText}</span>
+                            <span class="${netClass}">${netText}</span>
+                        </div>`;
+                    cell.dataset.depositValue = depositValue;
+                    cell.dataset.withdrawalValue = withdrawalValue;
+                    cell.dataset.netValue = netValue;
+                });
+            }
+
+            function renderMetricsGroup(group) {
+                if (!group) {
+                    setTableMessage('No data available for this selection.');
+                    return;
+                }
+                const brandMap = new Map();
+                const currencyTotals = {};
+                DISPLAY_CURRENCIES.forEach(ccy => {
+                    currencyTotals[ccy] = { deposit: 0, withdrawal: 0 };
+                });
+
+                (group.currencies || []).forEach((currencyEntry) => {
+                    const ccy = String(currencyEntry.currency || '').toUpperCase();
+                    if (!DISPLAY_CURRENCIES.includes(ccy)) return;
+                    (currencyEntry.brands || []).forEach((brandEntry) => {
+                        const brandKey = brandEntry.brand || 'Unknown';
+                        if (!brandMap.has(brandKey)) {
+                            brandMap.set(brandKey, {
+                                brand: brandEntry.brand,
+                                metricsByCurrency: {},
+                                totals: { deposit: 0, withdrawal: 0 }
+                            });
+                        }
+                        const row = brandMap.get(brandKey);
+                        const depositValue = Number(brandEntry.metrics?.totalDeposit) || 0;
+                        const withdrawalValue = Number(brandEntry.metrics?.totalWithdraw) || 0;
+                        row.metricsByCurrency[ccy] = { deposit: depositValue, withdrawal: withdrawalValue };
+                        row.totals.deposit += depositValue;
+                        row.totals.withdrawal += withdrawalValue;
+                        if (!currencyTotals[ccy]) {
+                            currencyTotals[ccy] = { deposit: 0, withdrawal: 0 };
+                        }
+                        currencyTotals[ccy].deposit += depositValue;
+                        currencyTotals[ccy].withdrawal += withdrawalValue;
+                    });
+                });
+
+                const sortedBrands = Array.from(brandMap.values()).sort((a, b) => b.totals.deposit - a.totals.deposit);
+                if (!sortedBrands.length) {
+                    setTableMessage('No brands reported for this group.');
+                    return;
+                }
+
+                metricsTableBody.innerHTML = '';
+                sortedBrands.forEach((row) => {
+                    const tr = document.createElement('tr');
+                    const netValue = row.totals.deposit - row.totals.withdrawal;
+                    const brandCell = document.createElement('td');
+                    const brandLabel = row.brand || 'N/A';
+                    brandCell.innerHTML = renderBrandCell(brandLabel, brandLabel);
+                    tr.appendChild(brandCell);
+                    const typeCell = document.createElement('td');
+                    typeCell.className = 'type-column-cell';
+                    typeCell.innerHTML = createTypeLabelMarkup(netValue < 0);
+                    tr.appendChild(typeCell);
+                    DISPLAY_CURRENCIES.forEach((ccy) => {
+                    const cell = document.createElement('td');
+                    const metric = row.metricsByCurrency[ccy] || {};
+                    const depositValue = Number(metric.deposit) || 0;
+                    const withdrawalValue = Number(metric.withdrawal) || 0;
+                    const netValue = depositValue - withdrawalValue;
+                    const netClass = netValue < 0 ? 'net-line negative' : 'net-line';
+                    const depositText = formatCurrencyValue(depositValue, ccy);
+                    const withdrawalText = formatCurrencyValue(withdrawalValue, ccy);
+                    const netText = formatNetLine(depositValue, withdrawalValue, ccy);
+                    cell.innerHTML = `<div class="currency-summary">
+                            <span class="deposit-line">${depositText}</span>
+                            <span class="withdrawal-line">${withdrawalText}</span>
+                            <span class="${netClass}">${netText}</span>
+                        </div>`;
+                    cell.dataset.depositValue = depositValue;
+                    cell.dataset.withdrawalValue = withdrawalValue;
+                    cell.dataset.netValue = netValue;
+                    tr.appendChild(cell);
+                    });
+                    metricsTableBody.appendChild(tr);
+                });
+
+                const totalDeposit = sortedBrands.reduce((sum, row) => sum + row.totals.deposit, 0);
+                const totalWithdrawal = sortedBrands.reduce((sum, row) => sum + row.totals.withdrawal, 0);
+                updateTotalsRow(currencyTotals, { deposit: totalDeposit, withdrawal: totalWithdrawal });
+                applySort();
+            }
+
+            async function loadMetrics() {
+                if (!selectedBrandGroupKey || !startDate || !endDate) return;
+                const params = new URLSearchParams();
+                params.set('startDate', startDate);
+                params.set('endDate', endDate);
+                params.set('brandGroups', selectedBrandGroupKey);
+                params.set('currencies', DISPLAY_CURRENCIES.join(','));
+                const fetchId = ++activeFetchId;
+                clearMetricsTable();
+                setLoadingState(true);
+                try {
+                    const response = await fetch(`/api/dashboard/metrics?${params.toString()}`);
+                    const data = await response.json();
+                    if (fetchId !== activeFetchId) return;
+                    if (!data.ok) throw new Error(data.error || 'No data returned');
+                    const group = (data.groups || []).find((g) => normalizeGroupValue(g.brandGroup) === selectedBrandGroupKey) || (data.groups || [])[0];
+                    if (!group) {
+                        setTableMessage('No data available for the selected group.');
+                        return;
+                    }
+                    renderMetricsGroup(group);
+                } catch (err) {
+                    console.error('Failed to load CX metrics', err);
+                    setTableMessage('Unable to fetch metrics at the moment.');
+                } finally {
+                    setLoadingState(false);
+                }
+            }
+
+            function setSelectedBrandGroup(key, label, options = {}) {
+                const normalized = normalizeGroupValue(key);
+                if (!normalized) return;
+                selectedBrandGroupKey = normalized;
+                selectedBrandGroupLabel = label || selectedBrandGroupLabel;
+                const dropdownLabel = document.querySelector('.menu .link span');
+                if (dropdownLabel) dropdownLabel.textContent = selectedBrandGroupLabel;
+                window.brandGroupFilter = selectedBrandGroupKey;
+                if (!options.skipFetch) {
+                    loadMetrics();
+                }
+            }
+
+            // Fetch and populate brand groups
+            async function loadBrandGroups() {
+                try {
+                    const response = await fetch('/api/dashboard/options');
+                    const data = await response.json();
+                    const submenu = document.querySelector('.submenu');
+                    
+                    // Clear existing items except the first one
+                    const items = submenu.querySelectorAll('.submenu-item');
+                    items.forEach(item => item.remove());
+                    
+                    const brandGroups = Array.isArray(data.brandGroups) ? data.brandGroups : [];
+                    // Add brand groups
+                    brandGroups.forEach(group => {
+                        const li = document.createElement('li');
+                        li.className = 'submenu-item';
+                        const link = document.createElement('a');
+                        link.className = 'submenu-link';
+                        link.href = '#';
+                        const value = group.key || group.value || group.label;
+                        link.setAttribute('data-value', value);
+                        link.setAttribute('data-label', group.label || value);
+                        link.textContent = group.label;
+                        li.appendChild(link);
+                        submenu.appendChild(li);
+                    });
+                    
+                    attachBrandGroupListeners();
+
+                    const match = brandGroups.find((group) => normalizeGroupValue(group.key || group.value) === selectedBrandGroupKey) || brandGroups[0];
+                    if (match) {
+                        setSelectedBrandGroup(match.key || match.value || match.label, match.label || match.value, { skipFetch: true });
+                    } else if (brandGroups.length) {
+                        setSelectedBrandGroup(brandGroups[0].key || brandGroups[0].value || brandGroups[0].label, brandGroups[0].label || brandGroups[0].value, { skipFetch: true });
+                    } else {
+                        const dropdownLabel = document.querySelector('.menu .link span');
+                        if (dropdownLabel) dropdownLabel.textContent = selectedBrandGroupLabel;
+                    }
+                    loadMetrics();
+                } catch (error) {
+                    console.error('Error loading brand groups:', error);
+                }
+            }
+
+            function attachBrandGroupListeners() {
+                const dropdownLinks = document.querySelectorAll('.submenu-link');
+                
+                dropdownLinks.forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const value = link.getAttribute('data-value');
+                        const text = link.getAttribute('data-label') || link.textContent.trim();
+                        
+                        setSelectedBrandGroup(value, text);
+                        
+                        // Close dropdown by removing hover
+                        document.querySelector('.menu .item').classList.remove('active');
+                    });
+                });
+            }
+            
+            // Load brand groups on page load
+            loadBrandGroups();
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                const menu = document.querySelector('.menu');
+                if (!menu.contains(e.target)) {
+                    menu.classList.remove('active');
+                }
+            });
+
+            // Date Range Picker
+            let currentMonth = new Date().getMonth();
+            let currentYear = new Date().getFullYear();
+
+            const dateRangeDisplay = document.getElementById('dateRangeDisplay');
+            const dateRangePopup = document.getElementById('dateRangePopup');
+            const calendarDays = document.getElementById('calendarDays');
+            const monthSelect = document.getElementById('monthSelect');
+            const yearSelect = document.getElementById('yearSelect');
+            const prevMonth = document.getElementById('prevMonth');
+            const nextMonth = document.getElementById('nextMonth');
+            const todayBtn = document.getElementById('todayBtn');
+            const yesterdayBtn = document.getElementById('yesterdayBtn');
+
+            // Helper function to format date
+            function formatDate(date) {
+              return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            }
+
+            // Quick range handlers
+            todayBtn.addEventListener('click', () => {
+              const today = new Date();
+              startDate = formatDate(today);
+              endDate = formatDate(today);
+              updateDisplay();
+              updateQuickRangeButtons();
+              dateRangePopup.style.display = 'none';
+              document.querySelector('.date-range-picker-container').classList.remove('active');
+              loadMetrics();
+            });
+
+            yesterdayBtn.addEventListener('click', () => {
+              const yesterday = new Date();
+              yesterday.setDate(yesterday.getDate() - 1);
+              startDate = formatDate(yesterday);
+              endDate = formatDate(yesterday);
+              updateDisplay();
+              updateQuickRangeButtons();
+              dateRangePopup.style.display = 'none';
+              document.querySelector('.date-range-picker-container').classList.remove('active');
+              loadMetrics();
+            });
+
+            function updateQuickRangeButtons() {
+              const today = formatDate(new Date());
+              const yesterday = new Date();
+              yesterday.setDate(yesterday.getDate() - 1);
+              const yesterdayStr = formatDate(yesterday);
+
+              todayBtn.classList.toggle('active', startDate === today && endDate === today);
+              yesterdayBtn.classList.toggle('active', startDate === yesterdayStr && endDate === yesterdayStr);
+            }
+
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+            // Initialize month and year selects
+            months.forEach((month, index) => {
+              const option = document.createElement('option');
+              option.value = index;
+              option.textContent = month;
+              monthSelect.appendChild(option);
+            });
+
+            for (let y = 2020; y <= 2030; y++) {
+              const option = document.createElement('option');
+              option.value = y;
+              option.textContent = y;
+              yearSelect.appendChild(option);
+            }
+
+            monthSelect.value = currentMonth;
+            yearSelect.value = currentYear;
+
+            function renderCalendar() {
+              calendarDays.innerHTML = '';
+              const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+              const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+              const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+              // Previous month's days
+              for (let i = firstDay - 1; i >= 0; i--) {
+                const day = document.createElement('div');
+                day.className = 'calendar-day other-month';
+                day.textContent = daysInPrevMonth - i;
+                calendarDays.appendChild(day);
+              }
+
+              // Current month's days
+              for (let i = 1; i <= daysInMonth; i++) {
+                const day = document.createElement('div');
+                const date = new Date(currentYear, currentMonth, i);
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                
+                day.className = 'calendar-day';
+                day.textContent = i;
+
+                if ((startDate && dateStr === startDate) || (endDate && dateStr === endDate)) {
+                  day.classList.add('selected');
+                  if (startDate && endDate && dateStr > startDate && dateStr < endDate) {
+                    day.classList.remove('selected');
+                    day.classList.add('in-range');
+                  }
+                } else if (startDate && endDate && dateStr > startDate && dateStr < endDate) {
+                  day.classList.add('in-range');
+                }
+
+                day.addEventListener('click', () => selectDate(dateStr));
+                calendarDays.appendChild(day);
+              }
+
+              // Next month's days
+              const totalCells = calendarDays.children.length;
+              for (let i = 1; i <= 42 - totalCells; i++) {
+                const day = document.createElement('div');
+                day.className = 'calendar-day other-month';
+                day.textContent = i;
+                calendarDays.appendChild(day);
+              }
+            }
+
+            function selectDate(dateStr) {
+              if (!startDate) {
+                startDate = dateStr;
+              } else if (!endDate) {
+                if (dateStr < startDate) {
+                  endDate = startDate;
+                  startDate = dateStr;
+                } else {
+                  endDate = dateStr;
+                }
+                updateDisplay();
+                updateQuickRangeButtons();
+                dateRangePopup.style.display = 'none';
+                document.querySelector('.date-range-picker-container').classList.remove('active');
+              } else {
+                startDate = dateStr;
+                endDate = null;
+              }
+              renderCalendar();
+              if (startDate && endDate) {
+                loadMetrics();
+              }
+            }
+
+            function updateDisplay() {
+              if (startDate && endDate) {
+                dateRangeDisplay.value = `${startDate} to ${endDate}`;
+              } else if (startDate) {
+                dateRangeDisplay.value = startDate;
+              }
+            }
+
+            dateRangeDisplay.addEventListener('click', () => {
+              const isHidden = dateRangePopup.style.display === 'none';
+              dateRangePopup.style.display = isHidden ? 'block' : 'none';
+              document.querySelector('.date-range-picker-container').classList.toggle('active');
+            });
+
+            monthSelect.addEventListener('change', (e) => {
+              currentMonth = parseInt(e.target.value);
+              renderCalendar();
+            });
+
+            yearSelect.addEventListener('change', (e) => {
+              currentYear = parseInt(e.target.value);
+              renderCalendar();
+            });
+
+            prevMonth.addEventListener('click', () => {
+              if (currentMonth === 0) {
+                currentMonth = 11;
+                currentYear--;
+              } else {
+                currentMonth--;
+              }
+              monthSelect.value = currentMonth;
+              yearSelect.value = currentYear;
+              renderCalendar();
+            });
+
+            nextMonth.addEventListener('click', () => {
+              if (currentMonth === 11) {
+                currentMonth = 0;
+                currentYear++;
+              } else {
+                currentMonth++;
+              }
+              monthSelect.value = currentMonth;
+              yearSelect.value = currentYear;
+              renderCalendar();
+            });
+
+            // Close popup when clicking outside
+            document.addEventListener('click', (e) => {
+              if (!e.target.closest('.date-range-picker-container')) {
+                dateRangePopup.style.display = 'none';
+                document.querySelector('.date-range-picker-container').classList.remove('active');
+              }
+            });
+
+            updateDisplay();
+            updateQuickRangeButtons();
+            renderCalendar();
+
+            const DEFAULT_SORT_COLUMN = 'bdt';
+            const DEFAULT_SORT_ORDER = 'desc';
+
+            function getHeaderByColumn(column) {
+                return table.querySelector(`th[data-column="${column}"]`);
+            }
+
+            function setSortState(activeHeader, order) {
+                headers.forEach(h => {
+                    h.setAttribute('data-sort', 'unsorted');
+                    const sortIcon = h.querySelector('.sort-icon');
+                    if (sortIcon) sortIcon.className = 'sort-icon unsorted';
+                });
+
+                activeHeader.setAttribute('data-sort', order);
+                const activeIcon = activeHeader.querySelector('.sort-icon');
+                if (activeIcon) activeIcon.className = `sort-icon ${order}`;
+            }
+
+            const table = document.getElementById('cxgroupTable');
+            const headers = table.querySelectorAll('th.sortable');
+            
+            function getColumnIndex(th) {
+                return Array.from(th.parentNode.children).indexOf(th);
+            }
+
+            function sortTable(columnIndex, columnKey, order) {
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr:not(.total-row)'));
+                const totalRow = tbody.querySelector('tr.total-row');
+
+                rows.sort((a, b) => {
+                    let aVal = a.cells[columnIndex].textContent.trim();
+                    let bVal = b.cells[columnIndex].textContent.trim();
+
+                    // Try to parse as number (remove commas)
+                    const acell = a.cells[columnIndex];
+                    const bcell = b.cells[columnIndex];
+                    let aNum = NaN;
+                    let bNum = NaN;
+                    if (acell) {
+                        const stored = Number(acell.dataset.depositValue);
+                        if (!Number.isNaN(stored)) {
+                            aNum = stored;
+                        }
+                    }
+                    if (bcell) {
+                        const stored = Number(bcell.dataset.depositValue);
+                        if (!Number.isNaN(stored)) {
+                            bNum = stored;
+                        }
+                    }
+                    if (!Number.isFinite(aNum)) {
+                        aNum = parseFloat(aVal.replace(/,/g, ''));
+                    }
+                    if (!Number.isFinite(bNum)) {
+                        bNum = parseFloat(bVal.replace(/,/g, ''));
+                    }
+
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return order === 'asc' ? aNum - bNum : bNum - aNum;
+                    }
+
+                    // String comparison
+                    if (order === 'asc') {
+                        return aVal.localeCompare(bVal);
+                    } else {
+                        return bVal.localeCompare(aVal);
+                    }
+                });
+
+                // Clear tbody
+                while (tbody.firstChild !== totalRow) {
+                    tbody.removeChild(tbody.firstChild);
+                }
+
+                // Add sorted rows
+                rows.forEach(row => tbody.insertBefore(row, totalRow));
+            }
+
+            headers.forEach(header => {
+                header.addEventListener('click', () => {
+                    const columnIndex = getColumnIndex(header);
+                    const columnKey = header.getAttribute('data-column');
+                    let currentSort = header.getAttribute('data-sort') || 'unsorted';
+                    let newSort = currentSort === 'desc' ? 'asc' : 'desc';
+
+                    // Update all headers
+                    headers.forEach(h => {
+                        h.setAttribute('data-sort', 'unsorted');
+                        h.querySelector('.sort-icon').className = 'sort-icon unsorted';
+                    });
+
+                    // Set current header
+                    setSortState(header, newSort);
+
+                    // Sort the table
+                    sortTable(columnIndex, columnKey, newSort);
+                });
+            });
+
+            function applySort(column = DEFAULT_SORT_COLUMN, order = DEFAULT_SORT_ORDER) {
+                const header = getHeaderByColumn(column);
+                if (!header) return;
+                const columnIndex = getColumnIndex(header);
+                setSortState(header, order);
+                sortTable(columnIndex, column, order);
+            }
+
+            // Button handlers
+            document.getElementById('btnExport').addEventListener('click', function() {
+                alert('Export functionality coming soon');
+            });
+
+        </script>
+    </body>
+</html>

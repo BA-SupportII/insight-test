@@ -1,0 +1,3679 @@
+App Script . Code.gs
+---------------------------
+// ========================= CONSTANTS ========================= //
+// Spreadsheet IDs
+const SPREADSHEET_ID_1 = "1ifqo-N4YDwQ1KcKCdIKYX13rlUKEr3RMVORgw7AEgoA"; // Old spreadsheet
+const SPREADSHEET_ID_2 = "1BBIlVuQmfQs1CeYRTUQtNEXyzVLq4KDUpvo8gjy8uZQ"; // New spreadsheet
+const SPREADSHEET_ID_3 = "1P7k05_bw-FXC6eK6_MtlflbAjLeP8eKDHn3tE447CA0"; // Third spreadsheet
+
+// Sheet names in second spreadsheet
+const SECOND_SPREADSHEET_SHEETS = [
+  "Unreachable Domains",
+  "Crickex",
+  "Mostplay",
+  "BetJILI",
+  "BetVisa",
+  "Jeetwin",
+  "S10"
+];
+
+// Sheet names in third spreadsheet
+const THIRD_SPREADSHEET_SHEETS = [
+  "Analysis Today",
+  "Analysis Yesterday"
+];
+
+// ========================= WEB APP ========================== //
+function doGet(e) {
+  // Serve the Index file and allow embedding in external sites (iframe)
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Pulse Point')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ========================= SHEET LIST ======================= //
+function getSheetList() {
+  const oldSheets = [
+    { name: 'Top 1', filtered: true,  spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Top 2', filtered: true,  spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Top 3', filtered: true,  spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Top 4', filtered: true,  spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Top 5', filtered: true,  spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Real Time Net Analysis',  filtered: true,  spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Real Time By Currency',   filtered: false, spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Today',      filtered: true,  spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Yesterday',  filtered: true,  spreadsheetId: SPREADSHEET_ID_1 },
+    { name: 'Brand Battle (Stats)', filtered: true, spreadsheetId: SPREADSHEET_ID_1 }
+  ];
+
+  const newSheets = SECOND_SPREADSHEET_SHEETS.map(name => ({
+    name, filtered: false, spreadsheetId: SPREADSHEET_ID_2
+  }));
+
+  const thirdSheets = THIRD_SPREADSHEET_SHEETS.map(name => ({
+    name, filtered: true, spreadsheetId: SPREADSHEET_ID_3
+  }));
+
+  const list = oldSheets.concat(newSheets).concat(thirdSheets);
+  Logger.log('Sheet list generated: ' + JSON.stringify(list));
+  return list;
+}
+
+// ========================= DATA FETCH ======================= //
+/**
+ * Main data fetcher used by client.
+ * Supports standard sheets and special NetV2 ("Brand Battle (Stats)"/"Net Net AnalysisV2").
+ */
+function getSheetData(sheetName, spreadsheetId) {
+  if (!spreadsheetId) spreadsheetId = SPREADSHEET_ID_1;
+
+  try {
+    // Special: Net Net AnalysisV2 (combined table)
+    if (sheetName === 'Brand Battle (Stats)' || sheetName === 'Net Net AnalysisV2') {
+      return fetchNetNetAnalysisV2_();
+    }
+
+    // Normal flow: read a single sheet
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return { error: 'Sheet "' + sheetName + '" not found in spreadsheet ' + spreadsheetId };
+
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow === 0 || lastCol === 0) return { header: [], data: [], formats: [] };
+
+    const maxRows = 500;
+    let values = sheet.getRange(1, 1, Math.min(maxRows, lastRow), lastCol).getDisplayValues();
+    let formats = sheet.getRange(1, 1, Math.min(maxRows, lastRow), lastCol).getNumberFormats();
+
+    // Remove fully empty rows
+    const nonEmptyRows = values.map((row, i) => ({ row, fmt: formats[i] }))
+      .filter(obj => obj.row.some(cell => cell !== "" && cell !== null));
+    if (nonEmptyRows.length === 0) return { header: [], data: [], formats: [] };
+
+    values = nonEmptyRows.map(obj => obj.row);
+    formats = nonEmptyRows.map(obj => obj.fmt);
+
+    const rawHeader = values[0];
+    const isHeaderBlank = (h) => h == null || String(h).trim() === "";
+
+    let filteredValues = [];
+    let filteredFormats = [];
+
+    if (spreadsheetId === SPREADSHEET_ID_1) {
+      const filteredSheets = ['Top 1', 'Top 2', 'Top 3', 'Top 4', 'Top 5'];
+      const isTopFiltered = filteredSheets.includes(sheetName);
+      const excludeTop = [6,7,8,9,11,12,13,14,16,17,22,23,24,25];
+      const excludeRealTime = [13,14,15,16,17,18,19,20,21];
+
+      values.forEach((row, rIdx) => {
+        const fRow = formats[rIdx];
+        if (isTopFiltered) {
+          filteredValues.push(row.filter((_, idx) => !excludeTop.includes(idx)));
+          filteredFormats.push(fRow.filter((_, idx) => !excludeTop.includes(idx)));
+        } else if (sheetName === 'Real Time Net Analysis') {
+          filteredValues.push(row.filter((_, idx) => !excludeRealTime.includes(idx)));
+          filteredFormats.push(fRow.filter((_, idx) => !excludeRealTime.includes(idx)));
+        } else if (sheetName === 'Today' || sheetName === 'Yesterday') {
+          filteredValues.push(row.filter((_, idx) => idx < 13 && !isHeaderBlank(rawHeader[idx])));
+          filteredFormats.push(fRow.filter((_, idx) => idx < 13 && !isHeaderBlank(rawHeader[idx])));
+        } else {
+          filteredValues.push(row);
+          filteredFormats.push(fRow);
+        }
+      });
+
+    } else if (spreadsheetId === SPREADSHEET_ID_2) {
+      filteredValues = values;
+      filteredFormats = formats;
+
+    } else if (spreadsheetId === SPREADSHEET_ID_3) {
+      values.forEach((row, rIdx) => {
+        const fRow = formats[rIdx];
+        if (sheetName === 'Analysis Today' || sheetName === 'Analysis Yesterday') {
+          filteredValues.push(row.filter((_, idx) => idx < 19 && !isHeaderBlank(rawHeader[idx])));
+          filteredFormats.push(fRow.filter((_, idx) => idx < 19 && !isHeaderBlank(rawHeader[idx])));
+        } else {
+          filteredValues.push(row);
+          filteredFormats.push(fRow);
+        }
+      });
+
+    } else {
+      filteredValues = values;
+      filteredFormats = formats;
+    }
+
+    const header = filteredValues[0] || [];
+    const data = filteredValues.length > 1 ? filteredValues.slice(1) : [];
+    const formatHeader = filteredFormats[0] || [];
+    const formatData = filteredFormats.length > 1 ? filteredFormats.slice(1) : [];
+
+    return { header, data, formats: [formatHeader].concat(formatData) };
+
+  } catch (e) {
+    Logger.log('Error accessing spreadsheet ' + spreadsheetId + ' for sheet "' + sheetName + '": ' + e.message);
+    return { error: 'Failed to access spreadsheet ' + spreadsheetId + ' for sheet "' + sheetName + '": ' + e.message };
+  }
+}
+
+// =================== SPECIAL: Net Net AnalysisV2 =============== //
+function fetchNetNetAnalysisV2_() {
+  const OLD_ID = SPREADSHEET_ID_1;
+  const ss = SpreadsheetApp.openById(OLD_ID);
+  const sh = ss.getSheetByName(' Net Analysis') || ss.getSheetByName('Net Analysis');
+  if (!sh) return { error: 'Sheet "Net Analysis" not found in old spreadsheet.' };
+
+  try {
+    // ----- CX -----
+    const H_CX = sh.getRange('B6:N6').getDisplayValues()[0] || [];
+    const D_CX = sh.getRange('B7:N42').getDisplayValues();
+    const C_CX = sh.getRange('A7:A42').getDisplayValues().map(r => r[0]);
+
+    // ----- MCW -----
+    const H_MCW = sh.getRange('Z6:AL6').getDisplayValues()[0] || [];
+    const D_MCW = sh.getRange('Z7:AL27').getDisplayValues();
+    const C_MCW = sh.getRange('Y7:Y27').getDisplayValues().map(r => r[0]);
+
+    // ----- BAJI -----
+    const H_BAJI = sh.getRange('AY6:BK6').getDisplayValues()[0] || [];
+    const D_BAJI = sh.getRange('AY7:BK17').getDisplayValues();
+    const C_BAJI = sh.getRange('AX7:AX17').getDisplayValues().map(r => r[0]);
+
+    // ----- E28 ----- (ADDED)
+    const H_E28 = sh.getRange('BW6:CI6').getDisplayValues()[0] || [];
+    const D_E28 = sh.getRange('BW7:CI20').getDisplayValues();
+    const C_E28 = sh.getRange('BV7:BV20').getDisplayValues().map(r => r[0]);
+
+    // ----- Other ----- (ADDED)  (fixed range: CU7:DG25)
+    const H_Other = sh.getRange('CU6:DG6').getDisplayValues()[0] || [];
+    const D_Other = sh.getRange('CU7:DG25').getDisplayValues();
+    const C_Other = sh.getRange('CT7:CT25').getDisplayValues().map(r => r[0]);
+
+    // Build a safe base header from the first non-empty header block
+    const headerCandidates = [H_CX, H_MCW, H_BAJI, H_E28, H_Other];
+    const firstNonEmpty = headerCandidates.find(h => (h && h.length && h.some(v => String(v || '').trim() !== ''))) || [];
+    const baseHeader = firstNonEmpty.map(h => (h == null ? '' : String(h)));
+    const header = ['Call', 'Currency'].concat(baseHeader);
+
+    function normalizeBlock(dataRows, currencyCol, tag) {
+      const len = Math.min(dataRows.length, currencyCol.length);
+      const out = [];
+      for (let i = 0; i < len; i++) {
+        const row = dataRows[i] || [];
+        const curr = currencyCol[i] || '';
+        const hasData = row.some(c => String(c || '').trim() !== '') || String(curr).trim() !== '';
+        if (!hasData) continue;
+        out.push([tag, curr].concat(row.map(c => c == null ? '' : c)));
+      }
+      return out;
+    }
+
+    const data = []
+      .concat(normalizeBlock(D_CX,    C_CX,    'CX'))
+      .concat(normalizeBlock(D_MCW,   C_MCW,   'MCW'))
+      .concat(normalizeBlock(D_BAJI,  C_BAJI,  'BAJI'))
+      .concat(normalizeBlock(D_E28,   C_E28,   'E28'))     // ADDED
+      .concat(normalizeBlock(D_Other, C_Other, 'Other'));  // ADDED
+
+    Logger.log('NetNetAnalysisV2 rows: ' + data.length);
+    return { header, data, formats: [] };
+
+  } catch (e) {
+    Logger.log('fetchNetNetAnalysisV2_ error: ' + e.stack);
+    return { error: 'Failed to build Net Net AnalysisV2: ' + e.message };
+  }
+}
+
+// =========== Helper: Currency chips for NetNetAnalysisV2 ======= //
+function getNetV2Currencies() {
+  const OLD_ID = SPREADSHEET_ID_1;
+  const ss = SpreadsheetApp.openById(OLD_ID);
+  const sh = ss.getSheetByName(' Net Analysis') || ss.getSheetByName('Net Analysis');
+  if (!sh) return { error: 'Sheet "Net Analysis" not found in old spreadsheet.' };
+
+  const uniqFromRange = (a1) => {
+    const vals = sh.getRange(a1).getValues();
+    const set = {};
+    vals.forEach(r => {
+      const v = String((r && r[0]) || '').trim();
+      if (v) set[v] = true;
+    });
+    return Object.keys(set).sort();
+  };
+
+  try {
+    const CX    = uniqFromRange('A7:A42');
+    const MCW   = uniqFromRange('Y7:Y27');
+    const BAJI  = uniqFromRange('AX7:AX17');
+    const E28   = uniqFromRange('BV7:BV20');  // ADDED
+    const Other = uniqFromRange('CT7:CT25');  // ADDED
+    return { CX, MCW, BAJI, E28, Other };
+  } catch (e) {
+    return { error: 'Failed to read currency ranges: ' + e.message };
+  }
+}
+
+// =========== NEW: Overall mini-tables per section (NetNetV2) == //
+function getNetV2Overall() {
+  const OLD_ID = SPREADSHEET_ID_1;
+  const ss = SpreadsheetApp.openById(OLD_ID);
+  const sh = ss.getSheetByName(' Net Analysis') || ss.getSheetByName('Net Analysis');
+  if (!sh) return { error: 'Sheet "Net Analysis" not found in old file.' };
+
+  function readBlock(a1) {
+    const values = sh.getRange(a1).getDisplayValues();
+    if (!values || !values.length) return { header: [], rows: [] };
+    const header = (values[0] || []).map(v => v || '');
+    const rows = values
+      .slice(1)
+      .filter(r => r && r.some(c => String(c || '').trim() !== ''));
+    return { header, rows };
+  }
+
+  try {
+    // NOTE: E28 & Other overall blocks are not specified in your note.
+    // Keeping existing ranges unchanged; add them later if you share their A1 ranges.
+    return {
+      CX:   readBlock('Q6:V17'),
+      MCW:  readBlock('AO6:AT17'),
+      BAJI: readBlock('BN6:BS17'),
+      E28:  readBlock('CL6:CQ17'),
+      Other: readBlock('DJ6:DO17')
+    };
+  } catch (e) {
+    Logger.log('getNetV2Overall error: ' + e.stack);
+    return { error: 'Failed to read Overall blocks: ' + e.message };
+  }
+}
+
+/** Read the update time from A2 of the "Net Analysis" sheet (display value). */
+function getNetV2UpdateTime() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID_1);
+    const sh = ss.getSheetByName(' Net Analysis') || ss.getSheetByName('Net Analysis');
+    if (!sh) return { error: 'Sheet "Net Analysis" not found in old file.' };
+    const val = sh.getRange('A2').getDisplayValue();
+    return { updateTime: val || '' };
+  } catch (e) {
+    Logger.log('getNetV2UpdateTime error: ' + e.stack);
+    return { error: 'Failed to read A2 update time: ' + e.message };
+  }
+}
+
+// ==================== BRAND DAILY STATE (REMOVED) ==================== //
+// Replaced with CX Group Modal - no direct server calls needed
+
+// ==================== TELEGRAM AUTO-SCREENSHOT ==================== //
+const TELEGRAM_BOT_TOKEN = '7867012734:AAGGrA-g0IT1msIHCFNdU7lXsvx4JX8Bl_M';
+const TELEGRAM_CHAT_ID = '-1002655753706';
+
+/**
+ * Sends the Brand Daily modal screenshot to Telegram (from HTML modal, not spreadsheet)
+ */
+function sendBrandDailyModalScreenshot(imageDataUrl) {
+  try {
+    if (!imageDataUrl) {
+      Logger.log('No image data provided');
+      throw new Error('No image data provided');
+    }
+    
+    // Extract base64 data from data URL
+    const base64Data = imageDataUrl.replace(/^data:image\/png;base64,/, '');
+    
+    // Create blob from base64
+    const imageBytes = Utilities.base64Decode(base64Data);
+    const imageBlob = Utilities.newBlob(imageBytes, 'image/png', 'brand-daily-state.png');
+    
+    // Send to Telegram using sendPhoto endpoint
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+    const caption = 'Brand Daily State Modal - ' + new Date().toLocaleString();
+    
+    // Build multipart form data manually
+    const boundary = 'WebKitFormBoundary' + Math.random().toString(36).substr(2, 9);
+    
+    // Create the body as array of bytes
+    let body = [];
+    const appendString = (text) => { body = body.concat(Utilities.newBlob(text, 'text/plain').getBytes()); };
+    
+    // Add chat_id field
+    appendString('--' + boundary + '\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n' + TELEGRAM_CHAT_ID + '\r\n');
+    
+    // Add photo field with the image blob
+    appendString('--' + boundary + '\r\nContent-Disposition: form-data; name="photo"; filename="screenshot.png"\r\nContent-Type: image/png\r\n\r\n');
+    body = body.concat(imageBlob.getBytes());
+    appendString('\r\n');
+    
+    // Add caption field
+    appendString('--' + boundary + '\r\nContent-Disposition: form-data; name="caption"\r\n\r\n' + caption + '\r\n');
+    
+    // Add closing boundary
+    appendString('--' + boundary + '--\r\n');
+    
+    // Convert array to blob
+    const payload = Utilities.newBlob(body, 'application/octet-stream');
+    
+    const options = {
+      method: 'post',
+      headers: {
+        'Content-Type': 'multipart/form-data; boundary=' + boundary
+      },
+      payload: payload,
+      muteHttpExceptions: true
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const result = JSON.parse(response.getContentText());
+    
+    Logger.log('Telegram API response: ' + JSON.stringify(result));
+    
+    if (result.ok) {
+      Logger.log('✓ Modal screenshot successfully sent to Telegram');
+      return result;
+    }
+    Logger.log('✗ Telegram API error: ' + (result.description || 'Unknown error'));
+    throw new Error('Telegram API error: ' + (result.description || 'Unknown error'));
+  } catch (e) {
+    Logger.log('sendBrandDailyModalScreenshot error: ' + e.message);
+    Logger.log('Stack: ' + e.stack);
+    throw e;
+  }
+}
+
+/**
+ * Sends a screenshot of the Brand Daily State table to Telegram (from spreadsheet)
+ */
+function sendBrandDailyStateScreenshot() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID_1);
+    const sheet = ss.getSheetByName('Brand Daily State');
+    if (!sheet) {
+      Logger.log('Sheet not found');
+      return;
+    }
+    
+    // Capture range C3:N as image
+    const imageBlob = sheet.getRange('C3:N').getSheetAsImage();
+    
+    // Send to Telegram using sendPhoto endpoint with multipart form data
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+    
+    const boundary = '----FormBoundary' + new Date().getTime();
+    const payload = Utilities.newBlob(
+      '--' + boundary + '\r\n' +
+      'Content-Disposition: form-data; name="chat_id"\r\n\r\n' +
+      TELEGRAM_CHAT_ID + '\r\n' +
+      '--' + boundary + '\r\n' +
+      'Content-Disposition: form-data; name="photo"; filename="screenshot.png"\r\n' +
+      'Content-Type: image/png\r\n\r\n'
+    ).getBytes().concat(imageBlob.getBytes()).concat(
+      Utilities.newBlob(
+        '\r\n--' + boundary + '\r\n' +
+        'Content-Disposition: form-data; name="caption"\r\n\r\n' +
+        'Brand Daily State Report - ' + new Date().toLocaleString() + '\r\n' +
+        '--' + boundary + '--'
+      ).getBytes()
+    );
+    
+    const options = {
+      method: 'post',
+      headers: {
+        'Content-Type': 'multipart/form-data; boundary=' + boundary
+      },
+      payload: payload,
+      muteHttpExceptions: true
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const result = JSON.parse(response.getContentText());
+    
+    if (result.ok) {
+      Logger.log('Screenshot successfully sent to Telegram');
+    } else {
+      Logger.log('Telegram API error: ' + result.description);
+    }
+  } catch (e) {
+    Logger.log('sendBrandDailyStateScreenshot error: ' + e.message);
+  }
+}
+
+/**
+ * Trigger daily screenshot at 12:30 AM
+ * Add this as a time-based trigger in Google Apps Script
+ */
+function scheduleTelegramScreenshot() {
+  // This function is meant to be called by Google Apps Script's time-based trigger
+  // Set up trigger: Triggers > Create new trigger > Time-driven > Daily > 12:30 AM
+  sendBrandDailyStateScreenshot();
+}
+
+
+-----------------------
+Index.html
+
+-------
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <base target="_top">
+        <meta charset="utf-8" />
+        <meta name="viewport"
+            content="width=device-width, initial-scale=1.0, minimum-scale=0.1, maximum-scale=10.0, user-scalable=yes, viewport-fit=cover">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3"></script>
+        <!-- Unified icon library -->
+        <script src="https://unpkg.com/lucide@latest"></script>
+        <!-- HTML to Canvas for screenshot capture -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+        <style>
+    /* =========================
+       THEME TOKENS (Light/Dark)
+       ========================= */
+    :root {
+      --bg: #f7f8fb;
+      --bg-soft: #ffffff;
+      --bg-elev: #ffffff;
+      --panel: #ffffff;
+      --panel-2: #f4f6f8;
+      --text: #0f172a;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+
+      --primary: #188661;          /* emerald */
+      --primary-100: #dcfce7;
+      --primary-200: #a7f3d0;
+
+      --accent: #011214;           /* cyan accent */
+      --accent-100: #cffafe;
+      --accent-200: #a5f3fc;
+
+      --warn: #f59e0b;             /* amber */
+      --danger: #ef4444;           /* red */
+      --danger-100: #fee2e2;
+
+      --gold: #d4a017;             /* gold accent */
+
+      /* ORANGE header/highlight palette (WCAG-friendly on black text) */
+      --orange-600:#e86d10;
+      --orange-500:#ff7a1a;
+      --orange-300:#ffb26b;
+      --orange-100:#fff1e6;
+
+      --header-bg-start:#ffffff;
+      --header-bg-end:#ffffff;
+      --header-fg:#000000; /* black text on white – best contrast */
+
+      --focus: 0 0 0 3px rgba(34, 211, 238, .4);
+      --ring: rgba(34, 211, 238, .45);
+      --shadow-1: 0 6px 20px rgba(2, 6, 23, .10);
+      --shadow-2: 0 12px 36px rgba(2, 6, 23, .12);
+
+      --code: #111827;
+      --nav-height: 64px;
+    }
+    body.theme-dark {
+      --bg: #2d2d2d;
+      --bg-soft: #3a3a3a;
+      --bg-elev: #404040;
+      --panel: #3a3a3a;
+      --panel-2: #454545;
+      --text: #ffffff;
+      --muted: #b0b0b0;
+      --border: #555555;
+
+      --primary: #4db8cc;
+      --primary-100: #1a5566;
+      --primary-200: #2d7a8f;
+
+      --accent: #ffffff;
+      --accent-100: #e0e0e0;
+      --accent-200: #d0d0d0;
+
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --danger-100: #3a1010;
+
+      --gold: #f3cc4b;
+
+      /* keep orange headers consistent in dark */
+      --header-bg-start:var(--orange-600);
+      --header-bg-end:var(--orange-300);
+      --header-fg:#0b0b0b;
+
+      --focus: 0 0 0 3px rgba(77, 184, 204, 0.5);
+      --ring: rgba(77, 184, 204, 0.45);
+      --shadow-1: 0 6px 20px rgba(0, 0, 0, .5);
+      --shadow-2: 0 12px 36px rgba(0, 0, 0, .6);
+
+      --code: #0b0d10;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+    }
+
+    html, body, #content, #table-container, .table-scroll {
+      touch-action: pinch-zoom pan-x pan-y;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    html, body { height: auto; }
+    body {
+      font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh; overflow: auto;
+      font-size: clamp(14px, 2vw, 16px); line-height: 1.7; letter-spacing: 0.5px;
+      display: block;
+      transition: background .25s ease, color .25s ease, border-color .25s ease;
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+      font-weight: 500;
+    }
+
+    /* AUTH gate */
+    body:not(.auth) #navbar,
+    body:not(.auth) #top-menu,
+    body:not(.auth) #sidebar,
+    body:not(.auth) #content,
+    body:not(.auth) #chartModal,
+    body:not(.auth) #chartBackdrop,
+    body:not(.auth) .modal,
+    body:not(.auth) .loading-overlay {
+      display: none !important;
+    }
+
+    #app { display: flex; flex-direction: column; align-items: center; }
+
+    /* Login */
+    #login-container {
+      display: none; position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.98);
+      background: var(--panel);
+      padding: 40px; border-radius: 16px; z-index: 10000;
+      box-shadow: var(--shadow-2); border: 1px solid var(--border);
+      opacity: 0; animation: loginFadeIn 0.5s ease forwards;
+      text-align: center;
+      max-width: 320px; width: 90vw;
+    }
+    #login-container .logo {
+      font-weight: 800;
+      letter-spacing: .3px;
+      color: var(--accent);
+      font-size: 1.9rem;
+      margin-bottom: 18px;
+    }
+    #login-container .input-group { margin: 14px 0; display: flex; flex-direction: column; align-items: stretch; }
+    #login-container label { font-weight: 700; color: var(--muted); margin-bottom: 6px; font-size: .95em; text-align: left; }
+    #login-container input {
+      padding: 14px 16px; width: 100%;
+      border: 1px solid var(--border); border-radius: 10px;
+      background: var(--bg-soft); color: var(--text);
+      transition: border-color .2s ease, box-shadow .2s ease;
+      font-size: 1em; box-sizing: border-box;
+    }
+    #login-container input:focus { border-color: var(--accent); box-shadow: var(--focus); outline: none; }
+    #login-container input::placeholder { color: var(--muted); }
+    #login-container button {
+      padding: 12px 16px; margin: 18px 0 0 0;
+      background: #000000;
+      border: none; color: #fff; cursor: pointer; border-radius: 10px;
+      transition: transform .2s ease, box-shadow .2s ease;
+      font-weight: 800; font-size: 1em; width: 100%;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    #login-container button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+
+    /* Navbar / Top bar */
+    #navbar {
+      background: linear-gradient(90deg, var(--header-bg-start) 0%, var(--header-bg-start) 50%, var(--header-bg-end) 100%);
+      color: var(--header-fg); padding: 12px 18px; position:fixed; top:0; width:100%;
+      z-index:1000; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.35);
+      display:flex; align-items:center; gap: 12px;
+      border-bottom:2px solid rgba(59, 130, 246, 0.3);
+    }
+    .brand {
+      display:flex; align-items:center; gap:10px; font-weight: 600; font-size: 15px;
+      letter-spacing:0.4px; color: var(--header-fg); white-space: nowrap;
+    }
+    .brand i { width: 22px; height: 22px; }
+    .brand-icon { color: #f97316 !important; stroke: #f97316 !important; }
+    body.theme-dark .brand-icon { color: #ffffff !important; stroke: #ffffff !important; }
+
+    .icon-btn {
+      display:inline-flex; align-items:center; justify-content:center;
+      gap:8px; border:1px solid var(--border); background: var(--bg-soft);
+      color: var(--text); padding: 8px 10px; border-radius: 10px; cursor: pointer;
+      transition: transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+      box-shadow: 0 0 0 rgba(0,0,0,0);
+    }
+    .icon-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-1); border-color: var(--accent); }
+    .icon-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+    .icon-btn .lbl { font-weight: 800; }
+    .icon-btn i { width: 18px; height: 18px; }
+
+    /* Top bar spinner (small; replaces blocking overlay) */
+    .topbar-spinner {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:30px; height:30px; border-radius:50%;
+      border:2px solid transparent;
+      background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0.06), rgba(0,0,0,0.02));
+      animation: spin 1s linear infinite;
+      color: var(--accent);
+    }
+    .topbar-spinner i { width:18px; height:18px; }
+    .hidden { display:none !important; }
+
+    /* Sidebar toggle */
+    #toggle-nav {
+      background:none; border:none; padding:0; margin:0;
+      display:inline-flex; align-items:center; justify-content:center;
+      width: 40px; height: 40px; border-radius: 10px; cursor:pointer;
+      color: var(--header-fg); transition: background .15s ease, transform .15s ease;
+    }
+    #toggle-nav:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-1px); }
+    #toggle-nav:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4); }
+    #toggle-nav i { width:22px; height:22px; }
+
+    #themeToggle { margin-left: 4px; }
+    #themeToggle .icon-sun { color: #f59e0b !important; display: inline-flex; }
+    #themeToggle .icon-moon { color: #fbbf24 !important; display: none !important; }
+    body.theme-dark #themeToggle .icon-sun { display: none !important; }
+    body.theme-dark #themeToggle .icon-moon { display: inline-flex !important; }
+
+    #timestamp{
+      background: #ffffff;
+      padding:8px 12px; border-radius:999px; border: 1px solid #000000; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      color:#000; font-weight:600; font-size:15px; letter-spacing:0.4px; display:flex; align-items:center; gap:8px; margin-left:auto; white-space: nowrap;
+    }
+    #timestamp i { width:16px; height:16px; }
+
+    #btnHourlyChart.chart-btn, #btnBrandDaily, #logout-btn {
+     padding: 10px 14px !important; background: #ffffff !important;
+     border: 1px solid #000000 !important; color: #000000 !important; cursor: pointer; border-radius: 10px !important; 
+     transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+     font-weight: 600; font-size: 15px; letter-spacing: 0.4px; white-space: nowrap; display: flex !important; align-items: center; gap: 6px;
+     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    }
+    #btnHourlyChart.chart-btn:hover, #btnBrandDaily:hover, #logout-btn:hover { 
+     transform: translateY(-2px) !important; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+     background: #f5f5f5 !important;
+    }
+    #btnHourlyChart.chart-btn i, #btnBrandDaily i, #logout-btn i { width: 18px; height: 18px; }
+    #logout-btn .lbl { font-weight: 800; color: #000000; }
+
+    /* Top-bar Groups */
+    #nav-groups { display:flex; gap:8px; align-items:center; margin-left: 4px; flex-wrap: wrap; }
+    .nav-group-btn {
+      display:inline-flex; align-items:center; gap:8px;
+      background: #ffffff; border:1px solid #000000; color: #000;
+      padding: 10px 12px; border-radius: 10px; cursor:pointer; font-weight: 600; font-size: 15px; letter-spacing: 0.4px;
+      transition: transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .nav-group-btn i { width:18px; height:18px; stroke-width: 2.5; color: #0f172a; }
+    .nav-group-btn:nth-child(1) i { color: #e74c3c; } /* Red for View Live Stats */
+    .nav-group-btn:nth-child(2) i { color: #3498db; } /* Blue for Competitor Brands */
+    .nav-group-btn:nth-child(3) i { color: #f39c12; } /* Orange for Leaderboard */
+    .nav-group-btn:nth-child(4) i { color: #27ae60; } /* Green for Domain RealTime Info */
+    .nav-group-btn:hover, .nav-group-btn:focus-visible { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.15); outline:none; border-color: #000; }
+    .nav-group-btn.active {
+      background: #000;
+      color:#fff; border-color: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .nav-group-btn.active i { color: #fff; }
+
+    .nav-dropdown {
+      position: absolute; z-index: 1002; min-width: 240px;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px; box-shadow: var(--shadow-2);
+      display:none;
+    }
+    .nav-dropdown.open { display:block; }
+    .nav-dropdown .heading { font-weight:900; color: var(--muted); padding: 6px 8px 4px; }
+    .nav-tabs { display:flex; flex-direction:column; gap:6px; outline: none; }
+    .nav-tab {
+      display:flex; align-items:center; gap:8px; width:100%;
+      text-align:left; background: var(--bg-soft);
+      border:1px solid var(--border); color: var(--text);
+      padding: 10px 10px; border-radius: 10px; font-weight:800; cursor:pointer;
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .nav-tab i { width:18px; height:18px; }
+    .nav-tab:hover, .nav-tab:focus-visible { transform: translateY(-1px); box-shadow: var(--shadow-1); border-color: var(--accent); outline: none; }
+    .nav-tab[aria-selected="true"] {
+      background: #000000; color:#fff; border-color: #000000; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    #top-menu { display:none !important; }
+
+    /* Sidebar */
+    #sidebar{
+      position:fixed; top:var(--nav-height, 64px); left:0; width:320px; height:calc(100vh - var(--nav-height, 64px));
+      background: var(--panel); color: var(--text); padding:20px;
+      overflow-y:auto; transform:translateX(-100%); transition:transform .3s ease; z-index:999;
+      border-right:1px solid var(--border); box-shadow: var(--shadow-1);
+      -webkit-overflow-scrolling: touch;
+    }
+    #sidebar.fullscreen{ top:0; left:0; width:100%; height:100%; transform:translateX(0); z-index:1002; }
+    #sidebar.active{ transform:translateX(0); }
+    .group{ background: var(--panel-2); border-radius:12px; margin-bottom:14px; overflow:hidden; border:1px solid var(--border); }
+    .group h3{
+      margin:0; font-size:16px; padding:14px; background: linear-gradient(0deg, var(--bg-elev), var(--panel-2));
+      border-radius:12px 12px 0 0; cursor:pointer; display:flex; justify-content:space-between; align-items:center;
+      font-weight:900; color: var(--text);
+    }
+    .group h3::after{ content:'▶'; font-size:12px; color: var(--muted); transition: transform .2s; }
+    .group h3.open::after{ transform:rotate(90deg); }
+    .sheet-list{ list-style:none; padding: 0 12px 12px 12px; margin:0; display:none; }
+    .sheet-list li{
+      padding:10px; color: var(--text); cursor:pointer; border-radius:10px; background: var(--bg-soft); margin:6px 0; font-weight:700;
+      border:1px solid var(--border); transition: all .15s ease;
+    }
+    .sheet-list li:hover{ background: var(--primary-100); transform: translateX(5px); border-color: var(--primary); }
+
+    /* Content */
+    #content{
+      margin-top:calc(var(--nav-height, 64px) + 20px); padding:16px 12px; transition: margin-left .3s ease; width:100%;
+      box-sizing:border-box; overflow: visible;
+    }
+    #sidebar.active + #content{ margin-left:320px; }
+    #sidebar.fullscreen + #content{ opacity:0.5; }
+
+    #table-tools{ width:100%; max-width:none; margin:0 0 8px 0; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    #updateTimeBadge{ margin-left:auto; font-weight:900; color: var(--accent); background: var(--panel); border:1px solid var(--border); padding:6px 10px; border-radius:999px; }
+
+    #table-container{
+      overflow: auto;
+      max-height: calc(100vh - 220px);
+      width:100%; display:block; position:relative; will-change:scroll-position; border:1px solid var(--border); border-radius:12px; box-shadow: var(--shadow-1); background: var(--bg-soft); margin:0;
+      overscroll-behavior: contain;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pinch-zoom pan-x pan-y;
+    }
+    #table-container::-webkit-scrollbar { width: 8px; height: 8px; }
+    #table-container::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 10px; }
+    #table-container::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+    #table-container::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+    #table-container>table{
+      width: max-content; min-width: 100%; table-layout: auto; border-collapse:separate; border-spacing:0; background:var(--bg-soft);
+      border-radius:12px; animation: fadeSlideUp .4s ease-out;
+      color: var(--text);
+    }
+    #table-container>table.domain-realtime{ table-layout:auto; }
+
+    #table-container>table th, #table-container>table td{
+      border:1px solid var(--border); padding:12px; text-align:center; font-size:15px; font-weight:600; letter-spacing: 0.4px; transition: background .2s, color .2s;
+      white-space: nowrap; background: var(--panel);
+    }
+
+    /* ==== ORANGE HEADERS (ALL TABLES) ==== */
+    #table-container>table th{
+      background: linear-gradient(135deg, #e86d10 0%, #ff8c1a 100%) !important;
+      color: #ffffff !important;
+      text-transform:uppercase; letter-spacing:.08em; cursor:pointer; user-select:none;
+      border: 1px solid #d45a0a !important;
+      font-weight: 900 !important;
+      font-size: 13px !important;
+    }
+    #table-container>table th:not(.currency-bdt):not(.currency-inr):not(.currency-pkr):not(.currency-npr):not(.currency-php):not(.currency-vnd):not(.currency-mmk):not(.currency-thb):not(.currency-usd):not(.currency-aed):not(.currency-lkr):hover{
+      background: linear-gradient(135deg, #d45a0a 0%, #f07c0a 100%) !important;
+    }
+    /* Currency-specific header colors - HIGH SPECIFICITY */
+    #brandDailyTable th.currency-bdt { background: linear-gradient(135deg, #f5d76e 0%, #f3b63a 100%) !important; color: #4a3600 !important; border-color: #d4a017 !important; }
+    #brandDailyTable th.currency-bdt:hover { background: linear-gradient(135deg, #f0d050 0%, #e8aa20 100%) !important; }
+    #brandDailyTable th.currency-inr { background: linear-gradient(135deg, #e5d4ff 0%, #c4b1ff 100%) !important; color: #2d0f66 !important; border-color: #8b5cf6 !important; }
+    #brandDailyTable th.currency-inr:hover { background: linear-gradient(135deg, #d9bfff 0%, #b299ff 100%) !important; }
+    #brandDailyTable th.currency-pkr { background: linear-gradient(135deg, #b8f3c2 0%, #66d18f 100%) !important; color: #0b3b26 !important; border-color: #1f7a50 !important; }
+    #brandDailyTable th.currency-pkr:hover { background: linear-gradient(135deg, #a0edb3 0%, #4ec97a 100%) !important; }
+    #brandDailyTable th.currency-npr { background: linear-gradient(135deg, #b8f0ff 0%, #6ad0e8 100%) !important; color: #063a4a !important; border-color: #0e7490 !important; }
+    #brandDailyTable th.currency-npr:hover { background: linear-gradient(135deg, #9eeaff 0%, #50c8e8 100%) !important; }
+    #brandDailyTable th.currency-php { background: linear-gradient(135deg, #d4e1ff 0%, #9ab6ff 100%) !important; color: #0b2c78 !important; border-color: #2563eb !important; }
+    #brandDailyTable th.currency-php:hover { background: linear-gradient(135deg, #bfd4ff 0%, #80a8ff 100%) !important; }
+    #brandDailyTable th.currency-vnd { background: linear-gradient(135deg, #ffd6c4 0%, #ff9f7f 100%) !important; color: #5c1a0c !important; border-color: #d64027 !important; }
+    #brandDailyTable th.currency-vnd:hover { background: linear-gradient(135deg, #ffccb3 0%, #ff8f6a 100%) !important; }
+    #brandDailyTable th.currency-mmk { background: linear-gradient(135deg, #ffe6b8 0%, #ffc94d 100%) !important; color: #5c3000 !important; border-color: #d97706 !important; }
+    #brandDailyTable th.currency-mmk:hover { background: linear-gradient(135deg, #ffdda3 0%, #ffbb20 100%) !important; }
+    #brandDailyTable th.currency-thb { background: linear-gradient(135deg, #f1d8ff 0%, #d39bff 100%) !important; color: #3a0b66 !important; border-color: #a855f7 !important; }
+    #brandDailyTable th.currency-thb:hover { background: linear-gradient(135deg, #e8cbff 0%, #c483ff 100%) !important; }
+    #brandDailyTable th.currency-usd { background: linear-gradient(135deg, #bdeff7 0%, #81d2e2 100%) !important; color: #053447 !important; border-color: #0ea5e9 !important; }
+    #brandDailyTable th.currency-usd:hover { background: linear-gradient(135deg, #a3e7f5 0%, #62cbe8 100%) !important; }
+    #brandDailyTable th.currency-aed { background: linear-gradient(135deg, #c7f3dd 0%, #6fe7aa 100%) !important; color: #0c3a1d !important; border-color: #15803d !important; }
+    #brandDailyTable th.currency-aed:hover { background: linear-gradient(135deg, #b3efd2 0%, #56dfaf 100%) !important; }
+    #brandDailyTable th.currency-lkr { background: linear-gradient(135deg, #ffd4e0 0%, #ff9cba 100%) !important; color: #5f0a20 !important; border-color: #e11d48 !important; }
+    #brandDailyTable th.currency-lkr:hover { background: linear-gradient(135deg, #ffc4d6 0%, #ff88ac 100%) !important; }
+    
+    /* Brand Daily Modal Header Styling */
+    .brand-daily-modal-header h2 {
+      background: linear-gradient(180deg, #ffd700 0%, #ffed4e 25%, #ffc700 50%, #ff9800 75%, #e67e00 100%);
+      color: #4a3200;
+      padding: 14px 24px;
+      border-radius: 20px;
+      font-weight: 900;
+      font-size: 18px;
+      letter-spacing: 0.6px;
+      margin: 0;
+      box-shadow: 0 8px 24px rgba(255, 215, 0, 0.45), 0 4px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      display: inline-block;
+      text-transform: uppercase;
+      position: relative;
+      overflow: hidden;
+    }
+    .brand-daily-modal-header h2::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, transparent 100%);
+      pointer-events: none;
+      border-radius: 20px 20px 0 0;
+    }
+    .brand-daily-modal-header h2 i {
+      position: relative;
+      z-index: 1;
+    }
+    .brand-daily-modal-header h2 .brand-state-label {
+      display: inline-block;
+      margin: 0 12px;
+      position: relative;
+      z-index: 1;
+    }
+    .brand-daily-modal-header h2 .brand-date-label {
+      display: inline-block;
+      margin-left: 12px;
+      padding-left: 12px;
+      border-left: 2px solid rgba(74, 50, 0, 0.3);
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* Total row styling in Brand Daily Table */
+    #brandDailyTable tbody tr.total-row,
+    #brandDailyTable tfoot tr.total-row {
+      background: linear-gradient(180deg, #ffd700 0%, #ffed4e 25%, #ffc700 50%, #ff9800 75%, #e67e00 100%) !important;
+      color: #4a3200 !important;
+      font-weight: 900 !important;
+      font-size: 16px !important;
+      box-shadow: 0 -4px 16px rgba(255, 215, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+      position: relative;
+    }
+    #brandDailyTable tbody tr.total-row::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
+      pointer-events: none;
+    }
+    #brandDailyTable tbody tr.total-row td,
+    #brandDailyTable tfoot tr.total-row td {
+      background: transparent !important;
+      color: #4a3200 !important;
+      border-color: rgba(74, 50, 0, 0.2) !important;
+      font-weight: 900 !important;
+      position: relative;
+      z-index: 1;
+    }
+    #table-container>table th.sticky-header{ position:sticky; top:0; z-index:10; box-shadow: 0 2px 3px rgba(0,0,0,.12); }
+    #table-container>table td.sticky-left{ position:sticky; left:0; z-index:5; }
+    #table-container>table th.sticky-left { position: sticky; left: 0; z-index: 11; }
+    #table-container>table th.sticky-corner { position: sticky; top: 0; left: 0; z-index: 12; }
+
+    #table-container>table tr:nth-child(even) td{ background: var(--panel-2); }
+
+    /* Don't override highlighted rows on hover */
+    #table-container>table tr:hover td{
+      filter:brightness(0.98);
+      background: inherit !important;
+      color: inherit !important;
+    }
+
+    .numeric-negative{ color: var(--danger) !important; font-weight:900; }
+    .percentage-negative{ color: var(--danger) !important; font-weight:900; }
+
+    .status-good{ 
+      background: linear-gradient(135deg, #dcfce7 0%, #a7f3d0 100%);
+      color: #065f46 !important; font-weight: 800; 
+      padding: 6px 12px; border-radius: 8px; display: inline-block;
+      border: 1px solid #6ee7b7; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.15);
+    }
+    .status-medium{ 
+      background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%);
+      color: #92400e !important; font-weight: 800;
+      padding: 6px 12px; border-radius: 8px; display: inline-block;
+      border: 1px solid #fbbf24; box-shadow: 0 2px 4px rgba(245, 158, 11, 0.15);
+    }
+    .status-bad{ 
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      color: #7f1d1d !important; font-weight: 800;
+      padding: 6px 12px; border-radius: 8px; display: inline-block;
+      border: 1px solid #fca5a5; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.15);
+    }
+    .status-error{
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      color: #7f1d1d !important; font-weight: 800;
+      padding: 6px 12px; border-radius: 8px; display: inline-block;
+      border: 1.5px solid #ef4444; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25);
+    }
+    .num-neg{ color: var(--danger) !important; font-weight:900; } /* mini-table negatives */
+
+    .error-remark{ 
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      color: #7f1d1d !important; font-weight: 800;
+      padding: 8px 12px; border-radius: 8px; display: inline-block;
+      border: 1.5px solid #ef4444; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.2);
+    }
+    .ok-remark{ 
+      background: linear-gradient(135deg, #dcfce7 0%, #a7f3d0 100%);
+      color: #065f46; font-weight: 800;
+      padding: 8px 12px; border-radius: 8px; display: inline-block;
+      border: 1.5px solid #10b981; box-shadow: 0 2px 6px rgba(0, 109, 73, 0.2);
+    }
+    .accounting-format{ text-align:center; }
+
+    /* Cell icon buttons */
+    .cell-actions { display:inline-flex; align-items:center; gap:8px; }
+    .action-icon {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:40px; height:40px; border-radius:8px; border:2px solid var(--border);
+      background: var(--bg-soft); color: #0891b2; cursor:pointer;
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .action-icon i { width:22px; height:22px; stroke-width: 2; }
+    .action-icon:hover { transform: translateY(-1px); box-shadow: var(--shadow-1); border-color: var(--accent); }
+    .action-icon.error { border-color: var(--danger); color: var(--danger); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+    /* Leaderboard Rank styles */
+    .rank-badge {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width: 26px; height: 26px; padding: 0 8px; border-radius: 999px;
+      background: var(--panel-2); border:1px solid var(--border); font-weight:900; font-size: 12px; color: var(--text);
+    }
+    .rank-1{
+      display:inline-flex; align-items:center; gap:6px; padding:0 12px; height:28px;
+      border-radius:999px; border:1px solid #d4a017;
+      background: linear-gradient(45deg, #f3cc4b, #ffd86a);
+      color:#4a3b00; font-weight:900; position:relative; overflow:hidden;
+      box-shadow: 0 0 0 2px rgba(243,204,75,.25), 0 8px 16px rgba(0,0,0,.2);
+    }
+    .rank-1::after{
+      content:''; position:absolute; top:0; left:-40%; width:40%; height:100%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0));
+      transform: skewX(-20deg);
+      animation: shine 2.4s linear infinite;
+    }
+    .rank-1 i { width:18px; height:18px; }
+    @keyframes shine{ 0%{ transform: translateX(-120%) skewX(-20deg);} 100%{ transform: translateX(320%) skewX(-20deg);} }
+
+    .rank-2{ display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:26px; padding:0 8px;
+      border-radius:999px; background: linear-gradient(45deg,#dfe5eb,#f3f6f8); border:1px solid #aeb6bf; color:#2f3a44; font-weight:900; }
+    .rank-3{ display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:26px; padding:0 8px;
+      border-radius:999px; background: linear-gradient(45deg,#ffb36b,#ffdbb1); border:1px solid #e2954a; color:#4a2b00; font-weight:900; }
+    /* Currency badge (rank-like) */
+    .currency-badge{
+      display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:999px;
+      background: linear-gradient(45deg, var(--badge-bg-start, #f3cc4b), var(--badge-bg-end, #ffd86a));
+      border:1.5px solid var(--badge-border, #d4a017);
+      color: var(--badge-text, #3a2a00); font-weight:900; font-size:12px; position:relative; overflow:hidden;
+      box-shadow: 0 0 0 2px rgba(255,255,255,.35), 0 6px 12px var(--badge-shadow, rgba(0,0,0,0.25));
+      text-transform: uppercase; letter-spacing: 0.2px;
+    }
+    .currency-badge::after{
+      content:''; position:absolute; top:0; left:-40%; width:40%; height:100%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.45), rgba(255,255,255,0));
+      transform: skewX(-18deg);
+      animation: shine 2.6s linear infinite;
+    }
+    .currency-badge .badge-icon{ width:16px; height:16px; stroke-width:2.4; color: var(--badge-icon, #e86d10); }
+    
+    /* Brand badge */
+    .brand-badge {
+      display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:6px;
+      background: linear-gradient(135deg, #f3cc4b, #ffd86a);
+      border:1.5px solid #d4a017;
+      color: #3a2a00; font-weight:800; font-size:11px; position:relative; overflow:hidden;
+      box-shadow: 0 0 0 2px rgba(255,255,255,.35), 0 4px 8px rgba(0,0,0,0.2);
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .brand-badge::before{
+      content:''; position:absolute; top:0; left:-40%; width:40%; height:100%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.45), rgba(255,255,255,0));
+      transform: skewX(-18deg);
+      animation: shine 2.6s linear infinite;
+    }
+    
+    /* Brand Daily State Modal */
+    .brand-daily-modal {
+      display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:2000;
+      background: rgba(0,0,0,0.5); align-items:center; justify-content:center;
+    }
+    .brand-daily-modal.active { display:flex; }
+    .brand-daily-modal-content {
+      background: var(--panel); border-radius:16px; max-width:95vw; max-height:90vh;
+      overflow:auto; padding:24px; box-shadow: var(--shadow-2); border: 1px solid var(--border);
+      width: 100%;
+    }
+    .brand-daily-modal-header {
+      display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;
+      padding-bottom:12px; border-bottom: 2px solid var(--border);
+    }
+    .brand-daily-modal-header h2 {
+      margin:0; font-size:20px; font-weight:900; color: var(--text);
+      letter-spacing: -0.5px;
+      font-family: 'Segoe UI', 'Roboto', sans-serif;
+    }
+    .brand-daily-modal-actions {
+      display:flex; align-items:center; gap:8px;
+    }
+    #btnTelegramScreenshot {
+      background: linear-gradient(135deg, #0088cc 0%, #0066aa 100%) !important;
+      color: #ffffff !important;
+      border: none !important;
+      padding: 8px 12px !important;
+      border-radius: 8px !important;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex !important;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 6px rgba(0, 136, 204, 0.25);
+    }
+    #btnTelegramScreenshot:hover {
+      background: linear-gradient(135deg, #0077bb 0%, #005599 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(0, 136, 204, 0.35);
+    }
+    #btnTelegramScreenshot i { width: 16px; height: 16px; }
+    .brand-daily-modal-close {
+      background:none; border:none; font-size:24px; cursor:pointer; color: var(--muted);
+      padding:0; width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+      border-radius:8px; transition: background .15s ease;
+    }
+    .brand-daily-modal-close:hover { background: var(--panel-2); color: var(--text); }
+    
+    #brandDailyTable {
+      width:100%; border-collapse:separate; border-spacing:0;
+      border-radius:12px; overflow:hidden; font-family: 'Segoe UI', sans-serif;
+    }
+    
+    #brandDailyTable th {
+      background: linear-gradient(135deg, #e86d10 0%, #ff8c1a 100%) !important;
+      color: #ffffff !important;
+      padding:14px 10px; text-align:center; font-weight:900; font-size:12px;
+      text-transform:uppercase; letter-spacing:.1em; border: 1px solid #d45a0a !important;
+      cursor: pointer; user-select: none;
+      transition: background 0.2s ease;
+      position: relative;
+    }
+    
+    #brandDailyTable th:hover {
+      background: linear-gradient(135deg, #d45a0a 0%, #f07c0a 100%) !important;
+    }
+    
+    /* Currency badge headers - keep orange background, show badges inside */
+    #brandDailyTable th.currency-header {
+      background: linear-gradient(135deg, #e86d10 0%, #ff8c1a 100%) !important;
+      border: 1px solid #d45a0a !important;
+      padding: 8px 6px !important;
+    }
+    
+    .currency-badge-header {
+      display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+      border-radius: 6px; font-weight: 900; font-size: 10px; position: relative;
+      overflow: hidden; text-transform: uppercase; letter-spacing: 0.15em;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      animation: badgePulse 2.8s ease-in-out infinite;
+      /* Badge colors will be applied inline via style */
+    }
+    
+    .currency-badge-header::before {
+      content: ''; position: absolute; top: 0; left: -40%; width: 40%; height: 100%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.5), rgba(255,255,255,0));
+      transform: skewX(-18deg);
+      animation: shine 2.8s linear infinite;
+    }
+    
+    .currency-badge-header i { width: 14px; height: 14px; stroke-width: 2.5; position: relative; z-index: 1; }
+    .currency-badge-header span { position: relative; z-index: 1; }
+    
+    @keyframes badgePulse {
+      0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.15); transform: scale(1); }
+      50% { box-shadow: 0 4px 12px rgba(0,0,0,0.25); transform: scale(1.02); }
+    }
+    
+    .sort-icon {
+      display: inline-block; margin-left: 4px; font-size: 10px; opacity: 0.6;
+    }
+    
+    .sort-icon.active { opacity: 1; }
+    
+    #brandDailyTable td {
+      padding: 12px 10px; text-align: right; border: 1px solid var(--border);
+      background: var(--bg-soft); color: var(--text); font-weight: 600; font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    #brandDailyTable td:first-child {
+      text-align: center; font-weight: 800;
+    }
+    
+    #brandDailyTable tr:nth-child(even) td { background: var(--panel-2); }
+    
+    #brandDailyTable tr:hover td { 
+      filter: brightness(0.96);
+      background: inherit !important;
+    }
+
+    /* Domain ERROR row highlight */
+    .row-error td {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+      color: #7f1d1d !important;
+      border: 1px solid #ef4444 !important;
+      font-weight: 800;
+    }
+
+    /* Orange highlight row (Top 1..5 only) */
+    .row-accent td{
+      background: linear-gradient(45deg, var(--orange-600), var(--orange-300)) !important;
+      color:#0b0b0b !important;
+    }
+    .row-accent td.sticky-left{
+      background: linear-gradient(45deg, var(--orange-600), var(--orange-300)) !important;
+      border-left:4px solid var(--orange-600) !important;
+      z-index:7 !important;
+    }
+    .row-accent a{ color:#0b3a7a !important; font-weight:800; }
+
+    /* Section header rows (Top 1, Top 2, etc.) */
+    .row-section-header td {
+      background: linear-gradient(90deg, #10b981 0%, #06b6d4 100%) !important;
+      color: #ffffff !important;
+      font-weight: 900 !important;
+      border-top: 2px solid #0891b2 !important;
+      padding: 12px !important;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .row-section-header td.sticky-left {
+      z-index: 8 !important;
+      border-left: 4px solid #0f766e !important;
+    }
+
+    /* Currency badge (Overall mini table) */
+    .currency-badge{
+      display:inline-flex; align-items:center; gap:6px; padding:0 12px; height:26px;
+      border-radius:999px; border:1px solid var(--badge-border, #d4a017);
+      background: linear-gradient(45deg, var(--badge-bg-start, #f3cc4b), var(--badge-bg-end, #ffd86a));
+      color: var(--badge-text, #4a3b00); font-weight:900; position:relative; overflow:hidden;
+      box-shadow: 0 0 0 2px var(--badge-shadow, rgba(243,204,75,.25)), 0 6px 12px rgba(0,0,0,.18);
+      line-height:1; font-size:12px; text-transform:uppercase; letter-spacing:.2px;
+    }
+    .currency-badge::after{
+      content:''; position:absolute; top:0; left:-40%; width:40%; height:100%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.55), rgba(255,255,255,0));
+      transform: skewX(-20deg);
+      animation: shine 2.4s linear infinite;
+    }
+    .currency-badge .badge-icon{ width:16px; height:16px; stroke-width:2.2; color: var(--badge-icon, #b45309); }
+
+    /* Loading overlay kept but not used (non-blocking UX now) */
+    .loading-overlay{ display:none !important; }
+    .loading-spinner-icon { display:none !important; }
+    @keyframes spinnerRotate { from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+    @keyframes spin { from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+
+    /* Image viewer modal */
+    .modal{ display:none; position:fixed; z-index:9999; padding-top:80px; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,.85); }
+    .modal-content{ margin:auto; display:block; max-width:90%; max-height:80vh; border-radius:12px; box-shadow:0 0 30px rgba(0,0,0,0.6); }
+    .close{ position:absolute; top:24px; right:48px; color: var(--accent); font-size:42px; font-weight:900; cursor:pointer; transition: transform .15s ease; }
+    .close:hover{ transform: scale(1.08); }
+
+    .sidebar-backdrop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:1001; }
+
+    @keyframes loginFadeIn{ from{opacity:0; transform:translate(-50%,-50%) scale(.98);} to{opacity:1; transform:translate(-50%,-50%) scale(1);} }
+    @keyframes fadeSlideUp{ from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);} }
+
+    /* Mobile */
+    @media (max-width:1024px){
+      .chart-table-container{ grid-template-columns: 1fr; }
+      .chart-area{ grid-column: 1; }
+      .table-area{ grid-column: 1; height: auto; max-height: 60vh; }
+    }
+    @media (max-width:768px){
+      #navbar{ padding:10px 12px; flex-wrap: wrap; align-items:flex-start; row-gap:8px; }
+      #nav-groups{ width:100%; overflow-x:auto; flex-wrap:nowrap; gap:6px; padding:4px 0; scrollbar-width:none; -ms-overflow-style:none; }
+      #nav-groups::-webkit-scrollbar{ display:none; }
+      .nav-group-btn{ flex:0 0 auto; padding:9px 10px; font-size:14px; }
+      #timestamp{ font-size:13px; padding:6px 10px; box-shadow:none; margin-left:0; order:10; }
+      #btnHourlyChart.chart-btn, #btnBrandDaily, #logout-btn{ padding:9px 10px !important; font-size:14px; }
+    
+    @media (max-width: 768px) {
+      .brand-daily-modal-content {
+        max-width:98vw; max-height:88vh; padding:14px;
+      }
+      .brand-daily-modal-header h2 { font-size:17px; margin-bottom:8px; }
+      #brandDailyTable th { padding:10px 6px; font-size:10px; }
+      #brandDailyTable td { padding:10px 6px; font-size:12px; }
+      .brand-badge { padding:3px 8px; font-size:9px; }
+      .currency-badge-header { padding: 5px 10px; font-size: 10px; }
+      .sort-icon { margin-left: 2px; font-size: 9px; }
+    }
+      #sidebar{ width:100%; top:var(--nav-height, 64px); height:calc(100vh - var(--nav-height, 64px)); padding:12px; }
+      #content{ padding:12px; margin-left:0; }
+      #table-container>table{ table-layout:auto; min-width:100%; }
+      th,td{
+        padding:8px 4px; font-size:12px; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; line-height: 1.3; vertical-align: top;
+      }
+
+      .chart-modal { inset: 0 !important; padding: 8px; border-radius: 0; max-width: none !important; max-height: none !important; width: 100vw !important; height: 100vh !important; }
+      .chart-backdrop { inset: 0 !important; z-index: 10000; }
+      .chart-table-container{ grid-template-columns: 1fr; gap: .5rem; }
+      .kpis{ grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap:.25rem; }
+    }
+
+    /* Hourly Chart bits (unchanged) */
+    .chart-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; z-index:10000; }
+    .chart-modal{
+      position:fixed; inset:5% 4%; background: var(--panel); color: var(--text); border-radius:16px; padding:14px; box-shadow: var(--shadow-2);
+      display:none; z-index:10001; border:1px solid var(--border);
+      transition: background .25s ease, color .25s ease;
+    }
+    .chart-modal.show, .chart-backdrop.show{ display:block; }
+    .chart-modal .modal-header{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.75rem; flex-wrap: wrap; }
+    .chart-modal .btn{ cursor:pointer; padding:.5rem .8rem; border-radius:10px; border:1px solid var(--border); background: var(--bg-soft); color: var(--text); font-weight:800; }
+    .chart-modal .btn:hover{ background: var(--panel-2); }
+    .muted-sub{ opacity:.75; font-size:.9rem; margin-top:2px; }
+    .panel-grid{ display:grid; grid-template-columns:1fr; gap:.75rem; }
+    .card-lite{ border:1px dashed var(--border); border-radius:12px; padding:.6rem .75rem; background: var(--panel-2); }
+    .card-solid{ border:1px solid var(--border); border-radius:12px; padding:.6rem .6rem; background: var(--panel); }
+    .filters .row{ display:flex; flex-wrap:wrap; gap:.75rem; align-items:flex-end; }
+    .filters .row label{ display:flex; gap:.5rem; align-items:center; min-width:180px; font-size:.9rem; color: var(--text); font-weight:800; }
+    .filters .row label i { width:16px; height:16px; color: var(--muted); }
+    .filters select{ padding:.45rem .6rem; border-radius:10px; border:1px solid var(--border); background: var(--bg-soft); color: var(--text); }
+    .row-tight{ justify-content:flex-start; align-items:center; gap:1.25rem; }
+    .toggle-wrap{ display:flex; align-items:center; gap:.5rem; }
+    .toggle-label{ font-size:.9rem; color: var(--text); cursor:pointer; }
+
+    .kpis{ display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:.5rem; padding:.5rem; background: var(--panel-2); border-radius:12px; }
+    .kpi{ border:1px solid var(--border); border-radius:12px; padding:.6rem .7rem; background: var(--panel); transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; border-left:4px solid transparent; }
+    .kpi:hover{ transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.15); border-left-color: #e86d10; }
+    .kpi .label{ font-size:.7rem; color: var(--muted); margin-bottom:3px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+    .kpi .value{ font-weight:900; font-size:1.3rem; color: #e86d10; line-height:1.2; font-family:'Courier New',monospace; letter-spacing: -0.5px; }
+    .kpi .sub{ font-size:.7rem; color: var(--muted); margin-top:4px; font-weight:600; }
+    body.theme-dark .kpi .label{ color: #ffffff; font-weight: 900; font-size: 0.75rem; opacity: 0.95; }
+    body.theme-dark .kpi .value{ color: #ffee66; font-weight: 1000; text-shadow: 0 1px 2px rgba(0,0,0,0.5); letter-spacing: 0px; }
+    body.theme-dark .kpi .sub{ color: #ffffff; font-weight: 800; opacity: 0.9; }
+    body.theme-dark .kpi{ background: #707070; border: 2px solid #888888; box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 3px rgba(255,255,255,0.2); }
+
+    .chart-table-container{ display:grid; grid-template-columns: 1fr 1fr; gap:.75rem; margin-top:.6rem; }
+    .chart-area{ height:54vh; min-height:360px; grid-column:1; padding: 16px; background: var(--panel); border-radius:12px; border:1px solid var(--border); }
+    .chart-area canvas{ filter: none; image-rendering: crisp-edges; }
+    body.theme-dark .chart-area canvas{ filter: brightness(0.98); }
+    .table-area{ height:54vh; grid-column:2; }
+    .table-scroll{ height:100%; overflow:auto; border:1px solid var(--border); border-radius:12px; position:sticky; top:0; background: var(--panel); }
+    .hour-table{ width:100%; border-collapse:collapse; font-size:.95rem; background:var(--panel); font-family:'Segoe UI', sans-serif; }
+    .hour-table th, .hour-table td{ border:1px solid var(--border); padding:.6rem .5rem; text-align:right; font-weight:600; }
+    .hour-table th{ position:sticky; top:0; z-index:10; background: linear-gradient(135deg, #e86d10 0%, #ff8c1a 100%) !important; color: #ffffff !important; font-weight:900; text-transform:uppercase; letter-spacing:.05em; border-color: #d45a0a !important; user-select:none; cursor:pointer; white-space:nowrap; }
+    .hour-table th:hover{ background: linear-gradient(135deg, #d45a0a 0%, #f07c0a 100%) !important; }
+    .hour-table th .sort-icon{ display:inline-block; margin-left:.4rem; font-size:.8rem; }
+    .hour-table th:first-child, .hour-table td:first-child{ text-align:center; }
+    .hour-table tbody tr:nth-child(odd) td{ background: var(--panel); }
+    .hour-table tbody tr:nth-child(even) td{ background: var(--panel-2); }
+    .hour-table tbody tr:hover td{ background: linear-gradient(90deg, rgba(232,109,16,0.08), transparent) !important; border-color: #e86d10; }
+    .hour-table td{ color: var(--text); font-weight:600; }
+
+    /* NetV2 controls, Overall, Search */
+    #netv2-controls{
+      display:none; margin: 10px 0 12px 0; background: var(--panel-2);
+      border:1px solid var(--border); border-radius:12px; padding:10px 12px; width:max-content; box-shadow: var(--shadow-1);
+    }
+    #netv2-controls .nnv2-row{ display:flex; align-items:center; gap:.5rem; margin:6px 0; flex-wrap:wrap; }
+    #netv2-controls strong{ font-size:.9rem; color: var(--muted); margin-right:4px; }
+    #netv2-controls .nnv2-seg button{
+      border:1px solid var(--border); background: var(--bg-soft); color: var(--text); padding:.4rem .7rem; border-radius:10px; cursor:pointer; font-weight:900;
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    #netv2-controls .nnv2-seg button:hover { transform: translateY(-1px); box-shadow: var(--shadow-1); border-color: var(--accent); }
+    #netv2-controls .nnv2-seg button.active{ background: linear-gradient(45deg, var(--primary), var(--accent)); color:#fff; border-color: transparent; }
+    #netv2-controls .nnv2-curr .chip{
+      display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); background: var(--bg-soft); color: var(--text); padding:.25rem .55rem; border-radius:999px; cursor:pointer; font-weight:900; font-size:.85rem;
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    #netv2-controls .nnv2-curr .chip:hover{ transform: translateY(-1px); box-shadow: var(--shadow-1); border-color: var(--accent); }
+    #netv2-controls .nnv2-curr .chip.active{ background: linear-gradient(45deg, var(--primary), var(--accent)); color:#fff; border-color: transparent; }
+
+    #netv2-overall{ position:relative; display:none; margin:10px 0 6px 12px; }
+    #netv2-overall .collapsible-header{
+      display:inline-flex; align-items:center; gap:10px; padding:8px 14px; border-radius:10px;
+      background: var(--bg-elev); border:1px solid var(--border); color: var(--accent);
+      cursor:pointer; user-select:none; font-weight:900; box-shadow: var(--shadow-1);
+    }
+    #netv2-overall .caret{ margin-left:6px; transition:transform .18s ease; color: var(--muted); }
+    #netv2-overall.open .caret{ transform:rotate(180deg); }
+    #netv2-overall .collapsible-content{
+      display:none; position:relative; left:0; top:8px; max-width:100%;
+      background: var(--panel); border-radius:10px; border:1px solid var(--border); box-shadow: var(--shadow-2); padding:8px; z-index:1;
+    }
+    #netv2-overall.open .collapsible-content{ display:block; }
+
+    #netv2-overall .mini-table{ width:100%; border-collapse:collapse; background:var(--panel); color:var(--text); border-radius:6px; overflow:hidden; margin:6px 0; table-layout:fixed; }
+    #netv2-overall .mini-table th, #netv2-overall .mini-table td{ border:1px solid var(--border); padding:8px 10px; font-size:13px; text-align:center; white-space:nowrap; }
+    /* ORANGE headers for mini tables */
+    #netv2-overall .mini-table th{
+     background: linear-gradient(45deg, #e86d10, #ffb26b) !important;
+     color: #0b0b0b !important; font-weight:900; text-transform:uppercase; letter-spacing:.4px;
+     border-color: #e86d10 !important;
+    }
+    #netv2-overall .detail-row td { background: var(--bg-elev); text-align:left; }
+    #netv2-overall .row-expander{ cursor:pointer; user-select:none; }
+    #netv2-overall .row-expander:focus-visible { outline:none; box-shadow: var(--focus); }
+
+    #netv2-searchwrap{ display:none; align-items:center; gap:8px; margin:6px 0 16px 12px; }
+    #netv2-searchwrap label{ color: var(--text); font-weight:900; }
+    #netv2-search{ padding:10px 12px; border-radius:10px; border:1px solid var(--border); background: var(--bg-soft); color: var(--text); min-width:260px; }
+  </style>
+    </head>
+    <body class="theme-dark">
+        <div id="app">
+            <!-- Login -->
+            <div id="login-container">
+                <span class="logo">Pulse Point</span>
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username"
+                        placeholder="Enter your username">
+                </div>
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password"
+                        placeholder="Enter your password">
+                </div>
+                <button onclick="login()">Login</button>
+            </div>
+
+            <!-- Navbar -->
+            <div id="navbar" role="navigation" aria-label="Top bar">
+                <button id="toggle-nav" class="icon-btn"
+                    aria-label="Toggle sidebar" aria-expanded="false"
+                    aria-controls="sidebar">
+                    <i data-lucide="menu" aria-hidden="true"></i>
+                </button>
+
+                <div class="brand" aria-label="Pulse Point">
+                    <i data-lucide="bolt" aria-hidden="true"
+                        class="brand-icon"></i>
+                    <span>Pulse Point</span>
+                </div>
+
+                <!-- New: group headers moved into the top bar -->
+                <div id="nav-groups" class="nav-groups" role="menubar"
+                    aria-label="Sections"></div>
+
+                <div id="timestamp" aria-live="polite">
+                    <i data-lucide="clock" aria-hidden="true"></i>
+                    <span class="ts-text"></span>
+                </div>
+
+                <button id="btnBrandDaily" class="chart-btn"
+                    title="View Brand Daily State">
+                    <i data-lucide="table-2" aria-hidden="true"></i>
+                    <span class="lbl">Daily</span>
+                </button>
+
+                <button id="btnHourlyChart" class="chart-btn"
+                    title="Show hourly analysis">
+                    <i data-lucide="bar-chart-3" aria-hidden="true"></i>
+                    <span class="lbl">Chart</span>
+                </button>
+
+                <button id="themeToggle" class="icon-btn"
+                    aria-label="Toggle theme">
+                    <i class="icon-sun" data-lucide="sun"
+                        aria-hidden="true"></i>
+                    <i class="icon-moon" data-lucide="moon" aria-hidden="true"
+                        style="display:none;"></i>
+                    <span class="lbl">Theme</span>
+                </button>
+
+                <!-- Small top-bar spinner (non-blocking loader) -->
+                <span id="topbarSpinner" class="topbar-spinner hidden"
+                    title="Loading">
+                    <i data-lucide="refresh-cw" aria-hidden="true"></i>
+                </span>
+
+                <button id="logout-btn" class="hidden icon-btn">
+                    <i data-lucide="log-out" aria-hidden="true"></i>
+                    <span class="lbl">Logout</span>
+                </button>
+            </div>
+
+            <!-- Menus + Sidebar -->
+            <div id="top-menu" aria-hidden="true"></div>
+            <div id="sidebar" role="complementary" aria-label="Sidebar"><div
+                    id="sidebar-content"></div></div>
+            <div class="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
+            <!-- Content -->
+            <div id="content">
+                <div id="netv2-controls"></div>
+
+                <div id="netv2-overall" class>
+                    <button class="collapsible-header"
+                        onclick="toggleOverallBox()" aria-expanded="false">
+                        <i data-lucide="layout-dashboard"
+                            aria-hidden="true"></i>
+                        <span id="netv2-overall-title"
+                            class="title">Overall</span>
+                        <i class="caret" data-lucide="chevron-down"
+                            aria-hidden="true"></i>
+                    </button>
+                    <div id="netv2-overall-content"
+                        class="collapsible-content"></div>
+                </div>
+
+                <div id="netv2-searchwrap">
+                    <label for="netv2-search"><i data-lucide="search"
+                            aria-hidden="true"></i> Search:</label>
+                    <input id="netv2-search" type="text"
+                        placeholder="Type to filter visible rows…">
+                </div>
+
+                <div id="table-tools" style="display:none;">
+                    <span id="updateTimeBadge">Update Time : —</span>
+                </div>
+
+                <div id="table-container"></div>
+            </div>
+
+            <!-- (Kept but disabled) old overlay -->
+            <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
+                <div class="loading-spinner-icon" role="status"
+                    aria-live="polite" aria-label="Loading">
+                    <i data-lucide="refresh-ccw" aria-hidden="true"></i>
+                </div>
+            </div>
+
+            <!-- Image viewer modal -->
+            <div id="imgModal" class="modal" role="dialog" aria-modal="true">
+                <span class="close"
+                    onclick="closeModal(); event.stopPropagation();"
+                    aria-label="Close image">&times;</span>
+                <img id="modalImage" class="modal-content"
+                    alt="Screenshot preview">
+            </div>
+        </div> <!-- /#app -->
+
+        <!-- Hourly Chart Modal -->
+        <div id="chartBackdrop" class="chart-backdrop"></div>
+        <div id="chartModal" class="chart-modal" role="dialog" aria-modal="true"
+            aria-label="Hourly Analysis">
+            <div class="modal-header">
+                <div>
+                    <strong style="font-size:1.05rem;">Hourly
+                        Distribution</strong>
+                    <div class="muted-sub">Hourly Metrics</div>
+                </div>
+                <div class="header-actions">
+                    <button id="btnExportCsv" class="btn">Export CSV</button>
+                    <button id="btnChartClose" class="btn">Close</button>
+                </div>
+            </div>
+            <div class="panel-grid">
+                <div class="filters card-lite">
+                    <div class="row">
+                        <label><i data-lucide="calendar-days"
+                                aria-hidden="true"></i> Day
+                            <select id="chartFilterDay">
+                                <option value="Analysis Today">Analysis
+                                    Today</option>
+                                <option value="Analysis Yesterday">Analysis
+                                    Yesterday</option>
+                            </select>
+                        </label>
+                        <label><i data-lucide="building-2"
+                                aria-hidden="true"></i> Brand
+                            <select id="chartFilterBrand">
+                                <option value="ALL">All Brands</option>
+                            </select>
+                        </label>
+                        <label><i data-lucide="line-chart"
+                                aria-hidden="true"></i> Metric
+                            <select id="chartFilterMetric">
+                                <option value="registered_count">Registered
+                                    Count (E)</option>
+                                <option value="first_deposit_count">First
+                                    Deposit Count (F)</option>
+                                <option value="deposit_count">Deposit Count
+                                    (G)</option>
+                                <option value="deposit_amount">Deposit Amount
+                                    (H)</option>
+                                <option value="withdrawal_count">Withdrawal
+                                    Count (I)</option>
+                                <option value="withdrawal_amount">Withdrawal
+                                    Amount (J)</option>
+                                <option value="unique_player">Unique Player
+                                    (K)</option>
+                                <option value="turnover">Turnover (N)</option>
+                                <option value="company_win_loss">Company
+                                    Win/Loss (O)</option>
+                                <option value="bonus">Bonus (P)</option>
+                                <option value="net_loss">Net Loss (Q)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="row row-tight">
+                        <div class="toggle-wrap">
+                            <input type="checkbox" id="chkShowTable">
+                            <label for="chkShowTable" class="toggle-label">Show
+                                hour table</label>
+                        </div>
+                        <div class="toggle-wrap">
+                            <input type="checkbox" id="chkStacked">
+                            <label for="chkStacked" class="toggle-label">Stack
+                                brands</label>
+                        </div>
+                        <div class="toggle-wrap">
+                            <input type="checkbox" id="chkSmooth">
+                            <label for="chkSmooth" class="toggle-label">Smooth
+                                lines</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpis card-lite" id="kpiBar"></div>
+            </div>
+            <div class="chart-table-container">
+                <div class="chart-area">
+                    <canvas id="chartHourlyCanvas"></canvas>
+                </div>
+                <div id="hourTableWrap" class="table-area"
+                    style="display:none;">
+                    <div class="table-scroll">
+                        <table class="hour-table" id="hourTable"></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+/* ======================== CONFIG ======================== */
+const groups = {
+  'View Live Stats': ['Brand Battle (Stats)'],
+  'Competitor Brands': ['Top 1', 'Top 2', 'Top 3', 'Top 4', 'Top 5'],
+  'Leaderboard': ['Today', 'Yesterday'],
+  'Domain RealTime Info': ['Unreachable Domains', 'Crickex', 'BetJILI', 'Mostplay', 'S10', 'BetVisa', 'Jeetwin']
+};
+const highlightValues = [
+  'BA JI','JEET BUZZ','CRICKEX','MCW','BET JILI','JEET WIN','MOSTPLAY','BET VISA',
+  'SIX6S','KHELA GHOR','BANGLAWIN','BANGLABET88','JEET BANGLA','MXW','PB',
+  'HEY BAJI','BANGLA SLOT','DARAZ PLAY','KHELO VIP','BENGAL BET','SUPER BAJI',
+  'FANCY WIN','E28','OZWIN365','SLOT BAJI','BET JDB','BET NAGA','JW','JEET WAY','WKTS','BH'
+];
+const domainInfoSheets = ['Crickex', 'BetJILI', 'Mostplay', 'S10', 'BetVisa', 'Jeetwin'];
+const sheetsToFreezeHeader = [
+  'Today','Yesterday','Analysis Today','Analysis Yesterday',
+  'Real Time Net Analysis','Real Time By Currency',
+  'Brand Battle (Stats)',
+  'Unreachable Domains','Crickex','Mostplay','S10','BetVisa','Jeetwin'
+];
+
+/* ====== THEME ====== */
+const THEME_KEY = 'PP_THEME';
+function applyTheme(theme){
+  document.body.classList.toggle('theme-dark', theme === 'dark');
+  document.body.classList.toggle('theme-light', theme === 'light');
+  const toggle = document.getElementById('themeToggle');
+  if (toggle) {
+    const icon = toggle.querySelector('i');
+    if (icon) { icon.setAttribute('data-lucide', theme === 'dark' ? 'moon' : 'sun'); }
+  }
+  if (globalThis.CHART_STATE && globalThis.CHART_STATE.chart) {
+    refreshHourlyChart();
+  }
+  queueMicrotask(refreshIcons);
+}
+function initTheme(){
+  const saved = localStorage.getItem(THEME_KEY);
+  const sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (sysDark ? 'dark' : 'light');
+  applyTheme(theme);
+}
+function toggleTheme(){
+  const isDark = document.body.classList.contains('theme-dark');
+  const next = isDark ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+}
+
+/* ======================== STATE ======================== */
+let currentSheet = null;
+let currentSpreadsheetId = null;
+let refreshInterval = null;
+let currentData = null;
+let currentHeader = null;
+let sheetListCache = [];
+let isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+const NETV2_UI = { overallOpen: JSON.parse(localStorage.getItem('NETV2_OVERALL_OPEN') || 'true') };
+const TABLE_SORT = { col: null, dir: 'asc' };
+let NETV2_SEARCH = '';
+const NETV2 = { segment:'CX', currency:'ALL', header:null, raw:[], currencyMap:null, overallMap:null, sig:null, overallSig:null, updateTimeSig:'' };
+
+/* ======================== ICON COLORING ======================== */
+function refreshIcons(){
+  try { window.lucide && window.lucide.createIcons(); } catch(e){}
+  try { applyIconColors(); } catch(e){}
+}
+const ICON_COLOR_CACHE = {};
+function colorForIcon(name){
+  if (ICON_COLOR_CACHE[name]) return ICON_COLOR_CACHE[name];
+  // stable HSL by hashing icon name
+  let hash = 0; for (let i=0;i<name.length;i++){ hash = ((hash<<5)-hash) + name.charCodeAt(i); hash |= 0; }
+  const hue = Math.abs(hash) % 360;
+  const sat = 68;
+  const light = document.body.classList.contains('theme-dark') ? 72 : 48;
+  const c = `hsl(${hue} ${sat}% ${light}%)`;
+  ICON_COLOR_CACHE[name] = c;
+  return c;
+}
+function applyIconColors(){
+  const svgs = document.querySelectorAll('svg.lucide, svg[data-lucide]');
+  svgs.forEach(svg => {
+    if (svg.classList.contains('brand-icon')) return;
+    const name = svg.getAttribute('data-lucide') || svg.dataset.lucide || '';
+    if (!name) return;
+    const c = colorForIcon(name);
+    svg.style.stroke = c; // lucide uses stroke color
+    svg.style.color = c;
+  });
+}
+
+/* ======================== UTIL ======================== */
+function updateTimestamp() {
+  const wrap = document.getElementById('timestamp');
+  const span = wrap?.querySelector('.ts-text');
+  if (!span) return;
+  const now = new Date();
+  const options = {
+    timeZone: 'Asia/Singapore',
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+  };
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+  const formatted = `${parts.find(p=>p.type==='weekday').value}, ${parts.find(p=>p.type==='month').value} ${parts.find(p=>p.type==='day').value}, ${parts.find(p=>p.type==='year').value} at ${parts.find(p=>p.type==='hour').value}:${parts.find(p=>p.type==='minute').value}:${parts.find(p=>p.type==='second').value} ${parts.find(p=>p.type==='dayPeriod').value}`;
+  span.textContent = formatted;
+}
+function refreshLayoutSpacing(){
+  const navbar = document.getElementById('navbar');
+  const sidebar = document.getElementById('sidebar');
+  const content = document.getElementById('content');
+  const h = navbar ? navbar.offsetHeight : 64;
+  document.documentElement.style.setProperty('--nav-height', `${h}px`);
+  if (sidebar) {
+    sidebar.style.top = `${h}px`;
+    sidebar.style.height = `calc(100vh - ${h}px)`;
+  }
+  if (content) content.style.marginTop = `calc(${h}px + 20px)`;
+}
+window.addEventListener('resize', () => requestAnimationFrame(refreshLayoutSpacing));
+function isValidUrl(str) { return typeof str === 'string' && str.startsWith('http'); }
+function parseNumeric(value) {
+  if (value == null) return null;
+  if (typeof value === 'number') return isNaN(value) ? null : value;
+  if (typeof value === 'string') {
+    let v = value.trim()
+      .replace(/\u00A0/g, ' ')
+      .replace(/\u2212/g, '-')
+      .replace(/,/g, '');
+    const paren = /^\((.*)\)$/.test(v);
+    if (paren) v = v.replace(/^\(|\)$/g, '');
+    const hasPct = /%$/.test(v);
+    if (hasPct) v = v.replace(/%$/, '');
+    const num = parseFloat(v);
+    if (isNaN(num)) return null;
+    const out = paren ? -num : num;
+    return out;
+  }
+  return null;
+}
+function formatPercent(raw, numeric) {
+  const s = String(raw ?? '')
+    .trim().replace(/\u00A0/g, ' ').replace(/\u2212/g, '-').replace(/,/g, '');
+  let v = null;
+  if (/%/.test(s)) {
+    const paren = /^\((.*)\)$/.test(s);
+    const n = parseFloat(s.replace('%','').replace(/^\(|\)$/g,''));
+    if (!isNaN(n)) v = paren ? -n : n;
+  }
+  if (v === null) {
+    const n = (typeof numeric === 'number') ? numeric : parseNumeric(s);
+    if (n != null) v = (Math.abs(n) <= 1 ? n * 100 : n);
+  }
+  if (v === null) return raw ?? '';
+  const out = v.toFixed(2) + '%';
+  return v < 0 ? `<span class="percentage-negative">${out}</span>` : out;
+}
+function rowsSignature(rows){
+  try {
+    if (!Array.isArray(rows)) return '0';
+    const len = rows.length;
+    const head = len ? JSON.stringify(rows[0]).length : 0;
+    const tail = len ? JSON.stringify(rows[len-1]).length : 0;
+    return `${len}:${head}:${tail}`;
+  } catch(e){ return String(rows?.length||0); }
+}
+function objectSignature(obj){
+  try { return JSON.stringify(obj).length.toString(); }
+  catch(e){ return 'x'; }
+}
+
+/* ======================== MENUS/SIDEBAR ======================== */
+function createTopMenu(sheetList) {
+  const topMenu = document.getElementById('top-menu');
+  topMenu.innerHTML = '';
+  for (const [groupName, sheets] of Object.entries(groups)) {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'top-menu-group';
+    const header = document.createElement('button');
+    header.textContent = groupName;
+    header.className = 'top-menu-group-header';
+    header.onclick = (e) => {
+      e.preventDefault();
+      const content = header.nextElementSibling;
+      content.classList.toggle('open');
+      header.classList.toggle('open');
+    };
+    const content = document.createElement('div');
+    content.className = 'top-menu-group-content';
+    sheets.forEach(sheet => {
+      const info = sheetList.find(s => s.name === sheet);
+      if (info) {
+        const button = document.createElement('button');
+        button.textContent = sheet;
+        button.onclick = () => {
+          loadSheet(info.name, info.spreadsheetId);
+          document.querySelectorAll('#top-menu button').forEach(btn => btn.classList.remove('active'));
+          button.classList.add('active');
+        };
+        content.appendChild(button);
+      }
+    });
+    groupDiv.appendChild(header);
+    groupDiv.appendChild(content);
+    topMenu.appendChild(groupDiv);
+  }
+  if (topMenu.querySelector('.top-menu-group-header')) {
+    const firstHeader = topMenu.querySelector('.top-menu-group-header');
+    firstHeader.nextElementSibling.classList.add('open');
+    firstHeader.classList.add('open');
+    const firstBtn = firstHeader.nextElementSibling.querySelector('button');
+    if (firstBtn) {
+      firstBtn.classList.add('active');
+      const info = sheetList.find(s => s.name === firstBtn.textContent);
+      if (info) loadSheet(info.name, info.spreadsheetId);
+    }
+  }
+}
+
+const GROUP_ICONS = {
+  'View Live Stats': 'activity',
+  'Competitor Brands': 'users',
+  'Leaderboard': 'trophy',
+  'Domain RealTime Info': 'globe'
+};
+function iconForSheet(name){
+  const map = {
+    'Brand Battle (Stats)': 'rocket',
+    'Top 1':'medal', 'Top 2':'medal', 'Top 3':'medal', 'Top 4':'medal', 'Top 5':'medal',
+    'Today':'trophy', 'Yesterday':'trophy',
+    'Unreachable Domains':'wifi-off',
+    'Crickex':'globe', 'BetJILI':'globe', 'Mostplay':'globe', 'S10':'globe', 'BetVisa':'globe', 'Jeetwin':'globe',
+    'Analysis Today': 'calendar-days', 'Analysis Yesterday': 'calendar-range'
+  };
+  return map[name] || 'file';
+}
+
+function createNavGroups(sheetList) {
+  const nav = document.getElementById('nav-groups');
+  if (!nav) return;
+  nav.innerHTML = '';
+
+  const groupEntries = Object.entries(groups).slice(0, 4);
+  groupEntries.forEach(([groupName, sheets]) => {
+    const btn = document.createElement('button');
+    btn.className = 'nav-group-btn';
+    btn.type = 'button';
+    btn.dataset.group = groupName;
+    btn.setAttribute('role','menuitem');
+    btn.setAttribute('aria-haspopup','true');
+    btn.setAttribute('aria-expanded','false');
+
+    const icon = GROUP_ICONS[groupName] || 'folder';
+    btn.innerHTML = `<i data-lucide="${icon}" aria-hidden="true"></i><span class="lbl">${groupName.replace(/^[\\p{Emoji_Presentation}\\p{Extended_Pictographic}]\\s*/u, '')}</span>`;
+
+    btn.addEventListener('click', () => toggleNavDropdown(groupName, btn, sheetList));
+    btn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleNavDropdown(groupName, btn, sheetList); }
+      if (e.key === 'Escape') closeNavDropdown();
+    });
+
+    nav.appendChild(btn);
+  });
+
+  setActiveNavGroupBySheet(currentSheet);
+  refreshIcons();
+  requestAnimationFrame(refreshLayoutSpacing);
+}
+
+function setActiveNavGroupBySheet(sheetName) {
+  const activeGroup = Object.keys(groups).find(g => (groups[g] || []).includes(sheetName));
+  document.querySelectorAll('.nav-group-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.group === activeGroup);
+  });
+}
+
+function ensureNavDropdown() {
+  let dd = document.getElementById('nav-dropdown');
+  if (!dd) {
+    dd = document.createElement('div');
+    dd.id = 'nav-dropdown';
+    dd.className = 'nav-dropdown';
+    dd.setAttribute('role','menu');
+    dd.setAttribute('aria-hidden','true');
+    document.body.appendChild(dd);
+  }
+  return dd;
+}
+
+function toggleNavDropdown(groupName, anchorBtn, sheetList) {
+  const dd = ensureNavDropdown();
+
+  if (dd.dataset.group === groupName && dd.classList.contains('open')) {
+    return closeNavDropdown();
+  }
+
+  dd.innerHTML = `<div class="heading">${groupName}</div>`;
+  const tabsWrap = document.createElement('div');
+  tabsWrap.className = 'nav-tabs';
+  tabsWrap.setAttribute('role','tablist');
+  const sheets = groups[groupName] || [];
+
+  sheets.forEach((sheet, idx) => {
+    const info = sheetList.find(s => s.name === sheet);
+    if (!info) return;
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'nav-tab';
+    tab.setAttribute('role','tab');
+    tab.setAttribute('aria-selected', currentSheet === sheet ? 'true' : 'false');
+    tab.dataset.sheet = sheet;
+    tab.innerHTML = `<i data-lucide="${iconForSheet(sheet)}" aria-hidden="true"></i><span>${sheet}</span>`;
+
+    tab.addEventListener('click', () => {
+      loadSheet(info.name, info.spreadsheetId);
+      tabsWrap.querySelectorAll('.nav-tab').forEach(t => t.setAttribute('aria-selected', t === tab ? 'true' : 'false'));
+      closeNavDropdown();
+      setActiveNavGroupBySheet(sheet);
+    });
+
+    tab.addEventListener('keydown', (e) => {
+      const tabs = Array.from(tabsWrap.querySelectorAll('.nav-tab'));
+      const i = tabs.indexOf(e.currentTarget);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault(); tabs[(i+1) % tabs.length].focus();
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault(); tabs[(i-1+tabs.length) % tabs.length].focus();
+      }
+      if (e.key === 'Escape') { e.preventDefault(); closeNavDropdown(); anchorBtn.focus(); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tab.click(); }
+    });
+
+    tabsWrap.appendChild(tab);
+  });
+
+  dd.appendChild(tabsWrap);
+
+  const r = anchorBtn.getBoundingClientRect();
+  const top = r.bottom + window.scrollY + 6;
+  let left = r.left + window.scrollX;
+  const width = dd.offsetWidth || 260;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - width - 12;
+  if (left > maxLeft) left = maxLeft;
+  dd.style.top = `${top}px`;
+  dd.style.left = `${left}px`;
+
+  dd.dataset.group = groupName;
+  dd.classList.add('open');
+  dd.setAttribute('aria-hidden','false');
+  anchorBtn.setAttribute('aria-expanded','true');
+
+  function onDocClick(e) { if (!dd.contains(e.target) && e.target !== anchorBtn) closeNavDropdown(); }
+  function onEsc(e) { if (e.key === 'Escape') closeNavDropdown(); }
+  document.addEventListener('click', onDocClick, { capture: true, once: true });
+  document.addEventListener('keydown', onEsc, { once: true });
+
+  refreshIcons();
+}
+function closeNavDropdown() {
+  const dd = document.getElementById('nav-dropdown');
+  if (!dd) return;
+  dd.classList.remove('open');
+  dd.setAttribute('aria-hidden','true');
+  const activeBtn = document.querySelector('.nav-group-btn[aria-expanded="true"]');
+  if (activeBtn) activeBtn.setAttribute('aria-expanded','false');
+}
+
+function createSidebar(sheetList) {
+  const sidebarContent = document.getElementById('sidebar-content');
+  sidebarContent.innerHTML = '';
+  for (const [group, sheets] of Object.entries(groups)) {
+    const div = document.createElement('div');
+    div.className = 'group';
+    const header = document.createElement('h3');
+    header.textContent = group;
+    header.tabIndex = 0;
+    header.onclick = () => {
+      const list = header.nextElementSibling;
+      list.style.display = list.style.display === 'none' ? 'block' : 'none';
+      header.classList.toggle('open');
+    };
+    header.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
+    });
+
+    const ul = document.createElement('ul');
+    ul.className = 'sheet-list';
+    ul.style.display = 'none';
+    sheets.forEach(name => {
+      const info = sheetList.find(s => s.name === name);
+      if (info) {
+        const li = document.createElement('li');
+        li.textContent = name;
+        li.onclick = (e) => {
+          e.stopPropagation();
+          loadSheet(info.name, info.spreadsheetId);
+          toggleSidebar();
+        };
+        ul.appendChild(li);
+      }
+    });
+    div.appendChild(header);
+    div.appendChild(ul);
+    sidebarContent.appendChild(div);
+  }
+}
+
+/* ======================== FORMATTER ======================== */
+function formatValue(value, columnHeader, row, rowIndex, colIndex) {
+  if (columnHeader && String(columnHeader).trim().toLowerCase() === 'brand') {
+    const numVal = parseNumeric(value);
+    if (numVal === 1) {
+      // For brand rows that show "1" as numeric, return empty to let header display
+      const firstCell = String(row[0] ?? '').toUpperCase().trim();
+      if (highlightValues.some(val => val.toUpperCase().trim() === firstCell)) {
+        return firstCell;
+      }
+    }
+    return value ?? '';
+  }
+
+  if (currentSheet === 'Brand Battle (Stats)' || currentSheet === 'Net Net AnalysisV2') {
+    const pctCols = new Set([5, 11]); // (0-based)
+    if (pctCols.has(colIndex)) { return formatPercent(value, parseNumeric(value)); }
+  }
+
+  const numericValue = parseNumeric(value);
+  const isCompetitorSheet = groups['Competitor Brands'].includes(currentSheet);
+
+  if (isCompetitorSheet && columnHeader && /different/i.test(columnHeader) && numericValue !== null) {
+    const formatted = Math.round(numericValue).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return numericValue < 0 ? `<span class="numeric-negative">${formatted}</span>` : formatted;
+  }
+
+  if (['Today','Yesterday'].includes(currentSheet)) {
+    if ([2,4,6,9,11].includes(colIndex) && numericValue !== null) {
+      return Math.round(numericValue).toLocaleString('en-US',{ minimumFractionDigits:0, maximumFractionDigits:0 });
+    }
+  }
+
+  if (['Analysis Today','Analysis Yesterday'].includes(currentSheet)) {
+    if ([4,5,6,8,10,11].includes(colIndex) && numericValue !== null) {
+      return Math.round(numericValue).toLocaleString('en-US',{ minimumFractionDigits:0, maximumFractionDigits:0 });
+    }
+    if (colIndex === 1 && typeof value === 'string') {
+      const date = new Date(value);
+      return isNaN(date) ? value : date.toISOString().split('T')[0];
+    }
+    if (colIndex === 2 && numericValue !== null) {
+      if (numericValue >= 0 && numericValue <= 23) {
+        const hour = numericValue.toString().padStart(2,'0');
+        return `${hour}:00 ${numericValue < 12 ? 'AM' : 'PM'}`;
+      }
+    }
+    if (colIndex === 17 && numericValue !== null) return formatPercent(value, numericValue);
+  }
+
+  if (currentSheet === 'Real Time Net Analysis') {
+    if (colIndex === 1 && numericValue !== null) {
+      return Math.round(numericValue).toLocaleString('en-US',{ minimumFractionDigits:0, maximumFractionDigits:0 });
+    }
+    if ([5,11].includes(colIndex)) return formatPercent(value, numericValue);
+  }
+
+  if (groups['Domain RealTime Info'].includes(currentSheet)) {
+    if (colIndex === 3 && typeof value === 'string') {
+      const date = new Date(value);
+      return isNaN(date) ? value : date.toLocaleString('en-US', { dateStyle:'medium', timeStyle:'short' });
+    }
+    if (colIndex === 2 && isValidUrl(value)) {
+      return `
+        <span class="cell-actions">
+          <a class="action-icon" href="${value}" onclick="window.location.href='${value}'; return false;" title="Open link">
+            <i data-lucide="external-link" aria-hidden="true"></i>
+            <span class="sr-only">Open link</span>
+          </a>
+        </span>`;
+    }
+    if (colIndex === 5 && typeof value === 'string') {
+      if (value.includes('%ERROR%')) return `<span class="error-remark">${value}</span>`;
+    }
+  }
+
+  if (domainInfoSheets.includes(currentSheet)) {
+    if (colIndex === 2 && isValidUrl(value)) {
+      return `
+        <span class="cell-actions">
+          <button class="action-icon" onclick="openLink('${value}')" title="Open link" aria-label="Open link">
+            <i data-lucide="external-link" aria-hidden="true"></i>
+          </button>
+        </span>`;
+    }
+    if ([3,6,9,12].includes(colIndex) && typeof value === 'string') {
+      const date = new Date(value);
+      return isNaN(date) ? value : date.toLocaleString('en-US', { dateStyle:'medium', timeStyle:'short' });
+    }
+  }
+
+  if (isCompetitorSheet && [1,3,5,8,10].includes(colIndex) && numericValue !== null) {
+    const formatted = Math.round(numericValue).toLocaleString('en-US',{ minimumFractionDigits:0, maximumFractionDigits:0 });
+    return numericValue < 0 ? `<span class="numeric-negative">${formatted}</span>` : `<span class="accounting-format">${formatted}</span>`;
+  }
+
+  if (currentSheet === 'Real Time By Currency' && colIndex === 4 && numericValue !== null) {
+    return formatPercent(value, numericValue);
+  }
+
+  if (columnHeader === 'Rank' && numericValue !== null) return Math.floor(numericValue);
+
+  // Handle ERROR columns in domain sheets
+  if (domainInfoSheets.includes(currentSheet)) {
+    if (typeof value === 'string') {
+      if (value.includes('OK')) return `<span class="ok-remark">OK</span>`;
+      if (value.includes('ERROR')) return `<span class="error-remark">${value}</span>`;
+    }
+  }
+  
+  // Handle ERROR columns by column header name
+  if (columnHeader && columnHeader.toUpperCase().includes('ERROR') && typeof value === 'string') {
+    if (value.includes('ERROR')) return `<span class="error-remark">${value}</span>`;
+  }
+
+  if ((groups['Competitor Brands'].includes(currentSheet) || ['Today','Yesterday'].includes(currentSheet)) &&
+      columnHeader && /different/i.test(columnHeader) && numericValue !== null) {
+    const absFmt = Math.round(Math.abs(numericValue)).toLocaleString(undefined,{ minimumFractionDigits:0, maximumFractionDigits:0 });
+    return numericValue < 0 ? `<span class="numeric-negative">-${absFmt}</span>` : absFmt;
+  }
+
+  const rawStr = String(value ?? '');
+  const hasLetters = /[A-Za-z]/.test(rawStr);
+  if (numericValue !== null && !hasLetters) {
+    const formatted = Math.round(numericValue).toLocaleString(undefined,{ minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return numericValue < 0 ? `<span class="numeric-negative">${formatted}</span>` : formatted;
+  }
+
+  if (typeof value === 'string') {
+    const lower = value.toLowerCase();
+    if (lower === 'good') return '<span class="status-good">Good</span>';
+    if (lower === 'medium') return '<span class="status-medium">Medium</span>';
+    if (lower === 'bad') return '<span class="status-bad">Bad</span>';
+    if (isValidUrl(value)) {
+      if (value.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+        return `
+          <button class="action-icon" onclick="safeShowImage('${value}')" title="View screenshot" aria-label="View screenshot">
+            <i data-lucide="image" aria-hidden="true"></i>
+          </button>`;
+      }
+      return `
+        <a class="action-icon" href="${value}" onclick="window.location.href='${value}'; return false;" title="Open link">
+          <i data-lucide="external-link" aria-hidden="true"></i>
+          <span class="sr-only">Open link</span>
+        </a>`;
+    }
+  }
+  return value || '';
+}
+
+/* ======================== SORT & SEARCH ======================== */
+function compareCells(a, b) {
+  const na = parseNumeric(a), nb = parseNumeric(b);
+  if (na !== null && nb !== null) {
+    if (na < nb) return -1;
+    if (na > nb) return 1;
+    return 0;
+  }
+  const sa = String(a ?? '').toLowerCase();
+  const sb = String(b ?? '').toLowerCase();
+  if (sa < sb) return -1;
+  if (sa > sb) return 1;
+  return 0;
+}
+function sortRows(rows, colIdx, dir='asc') {
+  if (colIdx == null) return rows.slice();
+  const sorted = rows.slice().sort((r1, r2) => compareCells(r1[colIdx], r2[colIdx]));
+  return (dir === 'desc') ? sorted.reverse() : sorted;
+}
+function applySearchRows(rows, query) {
+  const q = (query || '').trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter(r => r.some(c => String(c ?? '').toLowerCase().includes(q)));
+}
+
+/* ======================== RENDER TABLE ======================== */
+function renderTable(header, data, isInitial = true) {
+  const container = document.getElementById('table-container');
+  currentHeader = header;
+  currentData = data;
+
+  if (isInitial) {
+    container.style.opacity = '0';
+    container.style.transition = 'opacity 0.25s ease-in-out';
+    setTimeout(() => {
+      container.innerHTML = '';
+      const table = document.createElement('table');
+      if (groups['Domain RealTime Info'].includes(currentSheet)) {
+        table.classList.add('domain-realtime');
+      }
+      const thead = document.createElement('thead');
+      const trHead = document.createElement('tr');
+      header.forEach((h, idx) => {
+        const th = document.createElement('th');
+        th.textContent = h || '';
+        th.classList.add('sticky-header');
+        if (idx === 0) { th.classList.add('sticky-left'); th.classList.add('sticky-corner'); }
+        if (TABLE_SORT.col === idx) {
+          const caret = document.createElement('span');
+          caret.className = 'sort-caret';
+          caret.textContent = (TABLE_SORT.dir === 'asc') ? '▲' : '▼';
+          th.appendChild(caret);
+        }
+        if (currentSheet === 'Brand Battle (Stats)' || currentSheet === 'Net Net AnalysisV2') {
+          th.style.cursor = 'pointer'; th.title = 'Click to sort';
+          th.onclick = () => {
+            if (TABLE_SORT.col === idx) { TABLE_SORT.dir = (TABLE_SORT.dir === 'asc') ? 'desc' : 'asc'; }
+            else { TABLE_SORT.col = idx; TABLE_SORT.dir = 'asc'; }
+            withPreservedScroll(() => { applyNetV2Filter(false); });
+          };
+        }
+        trHead.appendChild(th);
+      });
+      thead.appendChild(trHead);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+
+      const rankIndex = header.indexOf('Rank');
+      const remarkIndex = header.findIndex(h => String(h || '').toLowerCase() === 'remark');
+      const topSheets = ['Top 1','Top 2','Top 3','Top 4','Top 5'];
+      const isTopSheet = topSheets.includes(currentSheet);
+      const isLeaderboard = ['Today','Yesterday'].includes(currentSheet);
+
+      data.forEach((row, rowIndex) => {
+       const tr = document.createElement('tr');
+       tr.dataset.row = rowIndex;
+       tr.style.opacity = '0';
+       tr.style.animation = 'fadeSlideUp .35s ease-out forwards';
+       tr.style.animationDelay = `${Math.min(rowIndex * 0.015, .25)}s`;
+
+       // Check for section header rows (Top 1, Top 2, etc.)
+       const firstCell = String(row[0] ?? '').toUpperCase().trim();
+       const isSectionHeader = ['TOP 1', 'TOP 2', 'TOP 3', 'TOP 4', 'TOP 5'].includes(firstCell);
+       if (isSectionHeader) {
+         tr.classList.add('row-section-header');
+       }
+
+       // Orange highlight only for Top 1..Top 5
+       const shouldHighlight = isTopSheet && row[0] && highlightValues.some(val => val.toUpperCase().trim() === firstCell);
+       if (shouldHighlight) tr.classList.add('row-accent');
+
+       // Domain row error
+       if (groups['Domain RealTime Info'].includes(currentSheet) && remarkIndex >= 0) {
+         const rv = String(row[remarkIndex] ?? '');
+         if (/ERROR/i.test(rv)) tr.classList.add('row-error');
+       }
+
+        let rankVal = null;
+        if (rankIndex >= 0) {
+          const rv = parseNumeric(row[rankIndex]);
+          rankVal = (rv !== null) ? Math.floor(rv) : null;
+        }
+
+        row.forEach((cell, colIndex) => {
+          const td = document.createElement('td');
+          td.dataset.col = colIndex;
+
+          // For section header rows, show only the first cell (name), rest empty
+          let html = isSectionHeader && colIndex > 0 ? '' : (shouldHighlight ? String(cell ?? '') : formatValue(cell, header[colIndex], row, rowIndex, colIndex));
+
+          // Rank cell rendering (Leaderboard gets special treatment)
+          if (rankIndex === colIndex && rankVal !== null) {
+            if (isLeaderboard) {
+              if (rankVal === 1) {
+                html = `<span class="rank-1"><i data-lucide="crown" aria-hidden="true"></i><span>#1</span></span>`;
+              } else if (rankVal === 2) {
+                html = `<span class="rank-2" aria-label="Rank 2">2</span>`;
+              } else if (rankVal === 3) {
+                html = `<span class="rank-3" aria-label="Rank 3">3</span>`;
+              } else {
+                html = `<span class="rank-badge" aria-label="Rank ${rankVal}">${rankVal}</span>`;
+              }
+            } else {
+              html = (rankVal === 1)
+                ? `<span class="rank-1"><i data-lucide="crown" aria-hidden="true"></i><span>#1</span></span>`
+                : `<span class="rank-badge" aria-label="Rank ${rankVal}">${rankVal}</span>`;
+            }
+          }
+
+          td.innerHTML = html;
+          if (colIndex === 0) td.classList.add('sticky-left');
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      container.appendChild(table);
+      container.style.opacity = '1';
+      setLoading(false);
+      refreshIcons();
+    }, 150);
+    return;
+  }
+
+  // incremental update
+  const tbody = container.querySelector('tbody');
+  if (!tbody) return;
+
+  const rankIndex = header.indexOf('Rank');
+  const remarkIndex = header.findIndex(h => String(h || '').toLowerCase() === 'remark');
+  const topSheets = ['Top 1','Top 2','Top 3','Top 4','Top 5'];
+  const isTopSheet = topSheets.includes(currentSheet);
+  const isLeaderboard = ['Today','Yesterday'].includes(currentSheet);
+
+  const existingRows = Array.from(tbody.querySelectorAll('tr'));
+  data.forEach((row, rowIndex) => {
+    let tr = existingRows[rowIndex] || document.createElement('tr');
+    if (!existingRows[rowIndex]) {
+      tr.dataset.row = rowIndex;
+      tr.style.opacity = '0';
+      tr.style.animation = 'fadeSlideUp .35s ease-out forwards';
+      tbody.appendChild(tr);
+    }
+    tr.classList.toggle('row-error', false);
+    tr.classList.remove('row-accent');
+    tr.classList.remove('row-section-header');
+
+    // Check for section header rows
+    const firstCell = String(row[0] ?? '').toUpperCase().trim();
+    const isSectionHeader = ['TOP 1', 'TOP 2', 'TOP 3', 'TOP 4', 'TOP 5'].includes(firstCell);
+    if (isSectionHeader) {
+      tr.classList.add('row-section-header');
+    }
+
+    // Error marker (Domain)
+    if (groups['Domain RealTime Info'].includes(currentSheet) && remarkIndex >= 0) {
+      const rv = String(row[remarkIndex] ?? '');
+      if (/ERROR/i.test(rv)) tr.classList.add('row-error');
+    }
+    // Orange highlight Top lists
+    const shouldHighlightRow = isTopSheet && firstCell && highlightValues.some(val => val.toUpperCase().trim() === firstCell);
+    if (shouldHighlightRow) {
+      tr.classList.add('row-accent');
+    }
+
+    row.forEach((cell, colIndex) => {
+      let td = tr.querySelector(`td[data-col="${colIndex}"]`);
+      if (!td) {
+        td = document.createElement('td');
+        td.dataset.col = colIndex;
+        if (colIndex === 0) td.classList.add('sticky-left');
+        tr.appendChild(td);
+      }
+      // For section header rows, show only the first cell (name), rest empty
+      let newValue = isSectionHeader && colIndex > 0 ? '' : (shouldHighlightRow ? String(cell ?? '') : formatValue(cell, header[colIndex], row, rowIndex, colIndex));
+
+      // Only apply rank styling if not a brand highlight row
+      if (!shouldHighlightRow && rankIndex === colIndex) {
+        const rv = parseNumeric(row[rankIndex]);
+        const rankVal = (rv !== null) ? Math.floor(rv) : null;
+        if (rankVal !== null) {
+          if (isLeaderboard) {
+            if (rankVal === 1) newValue = `<span class="rank-1"><i data-lucide="crown" aria-hidden="true"></i><span>#1</span></span>`;
+            else if (rankVal === 2) newValue = `<span class="rank-2" aria-label="Rank 2">2</span>`;
+            else if (rankVal === 3) newValue = `<span class="rank-3" aria-label="Rank 3">3</span>`;
+            else newValue = `<span class="rank-badge" aria-label="Rank ${rankVal}">${rankVal}</span>`;
+          } else {
+            newValue = (rankVal === 1)
+              ? `<span class="rank-1"><i data-lucide="crown" aria-hidden="true"></i><span>#1</span></span>`
+              : `<span class="rank-badge" aria-label="Rank ${rankVal}">${rankVal}</span>`;
+          }
+        }
+      }
+
+      if (td.innerHTML !== newValue) td.innerHTML = newValue;
+    });
+  });
+  if (existingRows.length > data.length) {
+    for (let i = data.length; i < existingRows.length; i++) tbody.removeChild(existingRows[i]);
+  }
+
+  // update sort caret
+  const ths = container.querySelectorAll('thead th');
+  ths.forEach((th, idx) => {
+    const c = th.querySelector('.sort-caret');
+    if (c) c.remove();
+    if (TABLE_SORT.col === idx) {
+      const caret = document.createElement('span');
+      caret.className = 'sort-caret';
+      caret.textContent = (TABLE_SORT.dir === 'asc') ? '▲' : '▼';
+      th.appendChild(caret);
+    }
+  });
+
+  refreshIcons();
+}
+
+/* ======================== SCROLL PRESERVER ======================== */
+function withPreservedScroll(fn){
+  const cont = document.getElementById('table-container');
+  if (!cont) { fn(); return; }
+  const st = cont.scrollTop, sl = cont.scrollLeft;
+  fn(); cont.scrollTop = st; cont.scrollLeft = sl;
+}
+
+/* ======================== DEBOUNCE ======================== */
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => { clearTimeout(timeout); func(...args); };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/* ======================== LOADER (Topbar spinner only) ======================== */
+function setLoading(on){
+  const sp = document.getElementById('topbarSpinner');
+  if (sp) sp.classList.toggle('hidden', !on);
+}
+
+/* ======================== LOADERS ======================== */
+const loadSheetDebounced = debounce((sheetName, spreadsheetId) => {
+  if (!isAuthenticated) { document.getElementById('login-container').style.display = 'block'; return; }
+  if (currentSheet !== sheetName || currentSpreadsheetId !== spreadsheetId) {
+    setLoading(true);
+  }
+  currentSheet = sheetName;
+  currentSpreadsheetId = spreadsheetId;
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (!result) {
+        document.getElementById('table-container').innerHTML = `<p style="color:var(--danger)">No response from server. Check execution logs.</p>`;
+      } else if (result.error) {
+        document.getElementById('table-container').innerHTML = `<p style="color:var(--danger)">${result.error}</p>`;
+      } else if (!result.data || result.data.length === 0) {
+        document.getElementById('table-container').innerHTML = `<p style="color:var(--danger)">No data available for "${currentSheet}".</p>`;
+      } else {
+        if (['Today','Yesterday','Analysis Today','Analysis Yesterday'].includes(currentSheet) && result.header.includes('Rank')) {
+          result.data.sort((a,b) => {
+            const rankA = parseFloat(a[result.header.indexOf('Rank')]) || Infinity;
+            const rankB = parseFloat(b[result.header.indexOf('Rank')]) || Infinity;
+            return rankA - rankB;
+          });
+        }
+        if (sheetName === 'Brand Battle (Stats)' || sheetName === 'Net Net AnalysisV2') {
+          (async () => {
+            TABLE_SORT.col = 2;
+            TABLE_SORT.dir = 'desc';
+            await buildNetV2Controls(result.header, result.data || []);
+            applyNetV2Filter(true);
+            await ensureOverallLoaded();
+            renderNetV2Overall();
+            document.getElementById('netv2-searchwrap').style.display = 'flex';
+            document.getElementById('table-tools').style.display = 'flex';
+            await refreshUpdateTime(true);
+          })();
+          document.getElementById('netv2-overall').style.display = 'block';
+        } else {
+          const ctl = document.getElementById('netv2-controls');
+          if (ctl) ctl.style.display = 'none';
+          const overall = document.getElementById('netv2-overall');
+          if (overall) overall.style.display = 'none';
+          document.getElementById('netv2-searchwrap').style.display = 'none';
+          document.getElementById('table-tools').style.display = 'none';
+          TABLE_SORT.col = null; TABLE_SORT.dir = 'asc';
+          NETV2_SEARCH = '';
+          renderTable(result.header, result.data, true);
+        }
+      }
+      setLoading(false);
+      refreshIcons();
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('table-container').innerHTML = `<p style="color:var(--danger)">Failed to load data: ${err.message}</p>`;
+      setLoading(false);
+    })
+    .getSheetData(sheetName, spreadsheetId);
+}, 500);
+
+function loadSheet(sheetName, spreadsheetId) {
+  setActiveNavGroupBySheet(sheetName);
+  if (refreshInterval) clearInterval(refreshInterval);
+  loadSheetDebounced(sheetName, spreadsheetId);
+
+  refreshInterval = setInterval(() => {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (!result || result.error) return;
+        if (['Today','Yesterday','Analysis Today','Analysis Yesterday'].includes(currentSheet) && result.header.includes('Rank')) {
+          result.data.sort((a,b) => {
+            const rankA = parseFloat(a[result.header.indexOf('Rank')]) || Infinity;
+            const rankB = parseFloat(b[result.header.indexOf('Rank')]) || Infinity;
+            return rankA - rankB;
+          });
+        }
+        if (currentSheet === 'Brand Battle (Stats)' || currentSheet === 'Net Net AnalysisV2') {
+          const newSig = rowsSignature(result.data||[]);
+          if (NETV2.sig !== newSig) {
+            NETV2.sig = newSig;
+            NETV2.header = result.header;
+            NETV2.raw = result.data || [];
+            withPreservedScroll(() => applyNetV2Filter(false));
+          }
+          refreshOverallIfNeeded();
+          refreshUpdateTime(false);
+        } else {
+          const newSig = rowsSignature(result.data||[]);
+          if (window.__lastSheetSig !== newSig) {
+            window.__lastSheetSig = newSig;
+            withPreservedScroll(() => renderTable(result.header, result.data, false));
+          }
+        }
+        refreshIcons();
+      })
+      .withFailureHandler(function(err) { console.error('Refresh failed:', err); })
+      .getSheetData(sheetName, spreadsheetId);
+  }, 5000);
+}
+
+/* ======================== IMAGE & LINK HELPERS ======================== */
+function safeShowImage(url){
+  if (!isValidUrl(url)) { alert('Screenshot not available'); return; }
+  showImage(url);
+}
+function openLink(url){
+  if (!isValidUrl(url)) { alert('Link not available'); return; }
+  window.location.href = url;
+}
+function showImage(url) {
+  const modal = document.getElementById('imgModal');
+  const modalImg = document.getElementById('modalImage');
+  if (!modal || !modalImg) return;
+  modalImg.src = url;
+  modal.style.display = 'block';
+}
+function closeModal() { const modal = document.getElementById('imgModal'); if (modal) modal.style.display = 'none'; }
+
+/* ======================== UI MISC ======================== */
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const expanded = !sidebar.classList.contains('active');
+  sidebar.classList.toggle('active');
+  document.getElementById('toggle-nav')?.setAttribute('aria-expanded', String(expanded));
+  if (window.innerWidth <= 768) {
+    sidebar.classList.toggle('fullscreen', expanded);
+    const backdrop = document.querySelector('.sidebar-backdrop');
+    backdrop.style.display = expanded ? 'block' : 'none';
+  }
+}
+document.getElementById('toggle-nav').onclick = toggleSidebar;
+window.onclick = function(event) {
+  const modal = document.getElementById('imgModal');
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('toggle-nav');
+  if (event.target === modal) modal.style.display = 'none';
+  if (!sidebar.contains(event.target) && event.target !== toggleBtn && sidebar.classList.contains('active')) toggleSidebar();
+};
+
+/* ====== AUTH: LOGIN / LOGOUT ====== */
+function login() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const validUsers = { 'admin': '11a', 'cx2025': '123qwe' };
+  if (validUsers[username] === password) {
+    isAuthenticated = true;
+    localStorage.setItem('isAuthenticated','true');
+    document.body.classList.add('auth');
+    document.getElementById('login-container').style.display = 'none';
+    document.getElementById('logout-btn').classList.remove('hidden');
+    if (window.__tsInt) clearInterval(window.__tsInt);
+    updateTimestamp();
+    window.__tsInt = setInterval(updateTimestamp, 1000);
+    google.script.run.withSuccessHandler(function(sheetList) {
+      sheetListCache = sheetList || [];
+      createTopMenu(sheetList);
+      createSidebar(sheetList);
+      createNavGroups(sheetList);
+      initHourlyChart();
+      refreshIcons();
+      refreshLayoutSpacing();
+    }).getSheetList();
+  } else {
+    alert('Invalid username or password');
+  }
+}
+function logout() {
+  isAuthenticated = false;
+  localStorage.removeItem('isAuthenticated');
+  if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+  if (window.__tsInt) { clearInterval(window.__tsInt); window.__tsInt = null; }
+  try { if (CHART_STATE?.chart) { CHART_STATE.chart.destroy(); CHART_STATE.chart = null; } } catch(e){}
+  const m = document.getElementById('chartModal'); if (m) m.classList.remove('show');
+  const b = document.getElementById('chartBackdrop'); if (b) b.classList.remove('show');
+  const clearEl = id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; };
+  clearEl('top-menu');
+  clearEl('sidebar-content');
+  clearEl('table-container');
+  const badge = document.getElementById('updateTimeBadge'); if (badge) badge.textContent = 'Update Time : —';
+  const ctl = document.getElementById('netv2-controls'); if (ctl) ctl.style.display = 'none';
+  const overall = document.getElementById('netv2-overall'); if (overall) overall.style.display = 'none';
+  const searchwrap = document.getElementById('netv2-searchwrap'); if (searchwrap) searchwrap.style.display = 'none';
+  currentSheet = null; currentSpreadsheetId = null;
+  currentData = null; currentHeader = null; sheetListCache = [];
+  NETV2.header = null; NETV2.raw = []; NETV2.overallMap = null; NETV2.sig = null; NETV2.overallSig = null; NETV2.updateTimeSig = '';
+  document.body.classList.remove('auth');
+  document.getElementById('logout-btn').classList.add('hidden');
+  document.getElementById('login-container').style.display = 'block';
+  document.getElementById('username').value = '';
+  document.getElementById('password').value = '';
+  refreshLayoutSpacing();
+  window.scrollTo({ top: 0 });
+}
+
+(function initAuthGate(){
+  initTheme();
+  document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
+  document.getElementById('logout-btn')?.addEventListener('click', logout);
+  refreshIcons();
+
+  if (!isAuthenticated) {
+    document.body.classList.remove('auth');
+    document.getElementById('login-container').style.display = 'block';
+    document.getElementById('logout-btn').classList.add('hidden');
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+    refreshLayoutSpacing();
+  } else {
+    document.body.classList.add('auth');
+    document.getElementById('login-container').style.display = 'none';
+    document.getElementById('logout-btn').classList.remove('hidden');
+    if (!window.__tsInt) { updateTimestamp(); window.__tsInt = setInterval(updateTimestamp, 1000); }
+    google.script.run.withSuccessHandler(function(sheetList) {
+      sheetListCache = sheetList || [];
+      createTopMenu(sheetList);
+      createSidebar(sheetList);
+      createNavGroups(sheetList);
+      initHourlyChart();
+      refreshIcons();
+      refreshLayoutSpacing();
+    }).getSheetList();
+  }
+  refreshLayoutSpacing();
+})();
+
+/* ======================== HOURLY CHART ======================== */
+const ANALYSIS_COLS = {
+  brand: 0, date: 1, hour: 2,
+  registered_count: 4, first_deposit_count: 5, deposit_count: 6, deposit_amount: 7,
+  withdrawal_count: 8, withdrawal_amount: 9, unique_player: 10,
+  turnover: 13, company_win_loss: 14, bonus: 15, net_loss: 16
+};
+const CHART_STATE = { day:'Analysis Today', brand:'ALL', metric:'registered_count', dataToday:null, dataYday:null, chart:null };
+window.CHART_STATE = CHART_STATE;
+function findSheetMetaByName(name){ return (sheetListCache||[]).find(s=>s.name===name)||null; }
+function getSheetDataPromise(sheetName, spreadsheetId){
+  return new Promise((resolve,reject)=>{ google.script.run.withSuccessHandler(res=>resolve(res)).withFailureHandler(err=>reject(err)).getSheetData(sheetName, spreadsheetId); });
+}
+async function loadAnalysisSheets(){
+  const metaToday = findSheetMetaByName('Analysis Today');
+  const metaYday = findSheetMetaByName('Analysis Yesterday');
+  if (!metaToday || !metaYday) return { today:null, yday:null };
+  const [todayRes, ydayRes] = await Promise.all([
+    getSheetDataPromise(metaToday.name, metaToday.spreadsheetId),
+    getSheetDataPromise(metaYday.name, metaYday.spreadsheetId)
+  ]);
+  return {
+    today: (todayRes && !todayRes.error) ? todayRes.data||[] : [],
+    yday: (ydayRes && !ydayRes.error) ? ydayRes.data||[] : []
+  };
+}
+function buildHourlySeries(rows, brand, metricKey){
+  const allBrands = Array.from(new Set(rows.map(r => (r?.[ANALYSIS_COLS.brand] ?? '')).map(s=>String(s).trim()).filter(Boolean))).sort();
+  const brands = brand==='ALL' ? allBrands : [brand];
+  const labels = Array.from({length:24}, (_,h) => `${String(h).padStart(2,'0')}:00 ${h<12?'AM':'PM'}`);
+  const datasets = brands.map(b => {
+    const filtered = rows.filter(r => String(r?.[ANALYSIS_COLS.brand] ?? '').trim() === b);
+    const buckets = Array.from({length:24}, () => 0);
+    for (const r of filtered) {
+      const hRaw = r?.[ANALYSIS_COLS.hour];
+      const h = typeof hRaw === 'number' ? hRaw : parseInt(String(hRaw).trim(), 10);
+      if (!Number.isFinite(h) || h<0 || h>23) continue;
+      const rawVal = r?.[ANALYSIS_COLS[metricKey]];
+      const val = parseNumeric(rawVal);
+      if (val == null) continue;
+      buckets[h] += val;
+    }
+    return { label:b, data:buckets, tension:0.35, pointRadius:3, pointHoverRadius:5, borderWidth:2, fill:false };
+  });
+  return { labels, datasets };
+}
+function metricPretty(key){
+  return ({
+    registered_count:'Registered Count', first_deposit_count:'First Deposit Count', deposit_count:'Deposit Count',
+    deposit_amount:'Deposit Amount', withdrawal_count:'Withdrawal Count', withdrawal_amount:'Withdrawal Amount',
+    unique_player:'Unique Player', turnover:'Turnover', company_win_loss:'Company Win/Loss', bonus:'Bonus', net_loss:'Net Loss'
+  })[key] || key;
+}
+function ensureHourlyChart(ctx, cfg, reuse){
+  const stacked = document.getElementById('chkStacked')?.checked ?? false;
+  const smooth = document.getElementById('chkSmooth')?.checked ?? false;
+  const isDarkMode = document.body.classList.contains('theme-dark');
+  const textColor = isDarkMode ? '#ffffff' : '#0f172a';
+  const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+  
+  const datasets = cfg.datasets.map((d, idx) => {
+    const colors = ['#1e40af', '#0369a1', '#d97706', '#ca8a04', '#16a34a', '#7c3aed', '#db2777', '#be123c'];
+    return { 
+      ...d, 
+      tension: smooth ? 0.45 : 0.15,
+      fill: false,
+      borderColor: colors[idx % colors.length],
+      backgroundColor: 'transparent',
+      pointBackgroundColor: colors[idx % colors.length],
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2.5,
+      borderWidth: 3,
+      pointRadius: 5,
+      pointHoverRadius: 8,
+      pointHoverBorderWidth: 3,
+      spanGaps: false,
+      clip: false
+    };
+  });
+  const options = {
+    responsive:true, maintainAspectRatio:false, 
+    animation:{ duration: 600, easing: 'easeInOutQuad' },
+    interaction:{ mode:'index', intersect:false },
+    plugins:{ 
+      title:{ display:true, text:cfg.title, font:{ size:16, weight:'900' }, padding:20, color:textColor }, 
+      legend:{ display: datasets.length>1, position:'top', labels:{ usePointStyle:true, padding:16, font:{size:13, weight:'700', color:textColor}, color:textColor } },
+      tooltip:{ backgroundColor:'rgba(15,23,42,0.95)', titleFont:{size:14, weight:'900', color:'#ffffff'}, titleColor:'#ffffff', bodyFont:{size:13, weight:'600', color:'#ffffff'}, bodyColor:'#ffffff', padding:14, borderRadius:10, displayColors:true, boxPadding:8, borderColor:'#e86d10', borderWidth:2 },
+      filler:{ propagate:false }
+    },
+    scales:{ 
+      x:{ grid:{ display:true, drawBorder:true, borderWidth:1.5, color:gridColor }, ticks:{ font:{size:12, weight:'600'}, color:textColor } }, 
+      y:{ beginAtZero:true, grid:{ display:true, drawBorder:true, borderWidth:1.5, color:gridColor }, ticks:{ font:{size:12, weight:'600'}, color:textColor, callback:v=>formatNum(Math.round(v)) } } 
+    }
+  };
+  if (reuse) {
+    reuse.data.labels = cfg.labels;
+    reuse.data.datasets = datasets;
+    reuse.options.plugins.title.text = cfg.title;
+    reuse.options.plugins.title.color = textColor;
+    reuse.options.plugins.legend.display = datasets.length>1;
+    reuse.options.plugins.legend.labels.color = textColor;
+    reuse.options.plugins.legend.labels.font = { ...reuse.options.plugins.legend.labels.font, color: textColor };
+    reuse.options.scales.x.ticks.color = textColor;
+    reuse.options.scales.y.ticks.color = textColor;
+    reuse.options.scales.x.grid.color = gridColor;
+    reuse.options.scales.y.grid.color = gridColor;
+    reuse.options.scales.x.stacked = stacked;
+    reuse.options.scales.y.stacked = stacked;
+    reuse.update('active');
+    return reuse;
+  }
+  return new Chart(ctx, {
+    type:'line',
+    data:{ labels:cfg.labels, datasets },
+    options:{ ...options, scales:{ ...options.scales, x:{ ...options.scales.x, stacked }, y:{ ...options.scales.y, stacked } } }
+  });
+}
+function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+function avg(arr){ return arr.length ? sum(arr)/arr.length : 0; }
+function toHrLabel(i){ const h=Number(i)||0; return `${String(h).padStart(2,'0')}:00 ${h<12?'AM':'PM'}`; }
+function computeStats(labels, datasets){
+  const byHour = labels.map((_,idx)=>sum(datasets.map(ds=>Number(ds.data[idx]||0))));
+  const total = sum(byHour), average = avg(byHour);
+  let minVal = Infinity, minIdx = 0, maxVal = -Infinity, maxIdx = 0;
+  byHour.forEach((v,i)=>{ if (v<minVal) {minVal=v; minIdx=i;} if (v>maxVal) {maxVal=v; maxIdx=i;} });
+  return { total, average, minHour: toHrLabel(minIdx), minVal, maxHour: toHrLabel(maxIdx), maxVal, points: byHour.filter(v=>Number.isFinite(v)).length };
+}
+function formatNum(n){ return Number(n).toLocaleString(); }
+function updateKpis(labels, datasets){
+  const kpiWrap = document.getElementById('kpiBar'); if (!kpiWrap) return;
+  const s = computeStats(labels, datasets);
+  const variance = s.points > 0 ? Math.sqrt(datasets.reduce((acc, d) => acc + d.data.reduce((a, v) => a + Math.pow(v - s.average, 2), 0), 0) / s.points) : 0;
+  const range = s.maxVal - s.minVal;
+  kpiWrap.innerHTML = `
+    <div class="kpi">
+      <div class="label"><i data-lucide="pie-chart" style="color:#e86d10;" aria-hidden="true"></i> Total</div>
+      <div class="value">${formatNum(s.total)}</div>
+      <div class="sub">All Hours Sum</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><i data-lucide="trending-up" style="color:#22c55e;" aria-hidden="true"></i> Peak</div>
+      <div class="value">${formatNum(s.maxVal)}</div>
+      <div class="sub">${s.maxHour}</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><i data-lucide="trending-down" style="color:#ef4444;" aria-hidden="true"></i> Low</div>
+      <div class="value">${formatNum(s.minVal)}</div>
+      <div class="sub">${s.minHour}</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><i data-lucide="activity" style="color:#0ea5e9;" aria-hidden="true"></i> Average</div>
+      <div class="value">${formatNum(Math.round(s.average))}</div>
+      <div class="sub">Per Hour</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><i data-lucide="move-horizontal" style="color:#f59e0b;" aria-hidden="true"></i> Range</div>
+      <div class="value">${formatNum(range)}</div>
+      <div class="sub">Peak - Low</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><i data-lucide="sigma" style="color:#a855f7;" aria-hidden="true"></i> Std Dev</div>
+      <div class="value">${formatNum(Math.round(variance))}</div>
+      <div class="sub">Variation</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><i data-lucide="hash" style="color:#0ea5e9;" aria-hidden="true"></i> Data Points</div>
+      <div class="value">${s.points}</div>
+      <div class="sub">Hours w/ Data</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><i data-lucide="target" style="color:#ec4899;" aria-hidden="true"></i> Growth</div>
+      <div class="value">${s.average > 0 ? ((range / s.average) * 100).toFixed(0) : 0}%</div>
+      <div class="sub">Volatility</div>
+    </div>`;
+    }
+    let TABLE_SORT_STATE = { col: -1, dir: 'DESC' };
+function renderHourTable(labels, datasets){
+  const wrap = document.getElementById('hourTableWrap');
+  const tbl = document.getElementById('hourTable');
+  if (!wrap || !tbl) return;
+  const show = document.getElementById('chkShowTable')?.checked ?? false;
+  wrap.style.display = show ? 'block' : 'none';
+  if (!show) return;
+  const headers = ['Hour', ...datasets.map(d => d.label), 'Total'];
+  // Set default sort to Total column (DESC) on first render
+  if (TABLE_SORT_STATE.col === -1) {
+    TABLE_SORT_STATE.col = headers.length - 1;
+  }
+    let html = '<thead><tr>' + headers.map((h, idx)=>`<th data-col="${idx}">${h}<span class="sort-icon">${TABLE_SORT_STATE.col === idx ? (TABLE_SORT_STATE.dir === 'DESC' ? '▼' : '▲') : ''}</span></th>`).join('') + '</tr></thead>';
+    html += '<tbody>';
+    const rows = [];
+    for (let i=0; i<labels.length; i++){
+      const rowVals = datasets.map(d => Number(d.data[i]||0));
+      const total = sum(rowVals);
+      rows.push({ hour: labels[i], vals: rowVals, total, idx: i });
+    }
+    // Sort by current column
+    rows.sort((a, b) => {
+      let aVal, bVal;
+      if (TABLE_SORT_STATE.col === 0) { aVal = a.hour; bVal = b.hour; }
+      else if (TABLE_SORT_STATE.col === headers.length - 1) { aVal = a.total; bVal = b.total; }
+      else { aVal = a.vals[TABLE_SORT_STATE.col - 1]; bVal = b.vals[TABLE_SORT_STATE.col - 1]; }
+      
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return TABLE_SORT_STATE.dir === 'DESC' ? bVal - aVal : aVal - bVal;
+      }
+      return TABLE_SORT_STATE.dir === 'DESC' ? String(bVal).localeCompare(String(aVal)) : String(aVal).localeCompare(String(bVal));
+    });
+    rows.forEach(row => {
+     html += `<tr><td><strong>${row.hour}</strong></td>` + row.vals.map(v=>`<td>${formatNum(v)}</td>`).join('') + `<td><strong>${formatNum(row.total)}</strong></td></tr>`;
+    });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+  
+  // Add click handlers to headers
+  tbl.querySelectorAll('thead th').forEach(th => {
+    th.addEventListener('click', () => {
+      const colIdx = parseInt(th.getAttribute('data-col'));
+      if (TABLE_SORT_STATE.col === colIdx) {
+        TABLE_SORT_STATE.dir = TABLE_SORT_STATE.dir === 'DESC' ? 'ASC' : 'DESC';
+      } else {
+        TABLE_SORT_STATE.col = colIdx;
+        TABLE_SORT_STATE.dir = 'DESC';
+      }
+      renderHourTable(labels, datasets);
+    });
+  });
+}
+function exportCsv(labels, datasets, title){
+  const headers = ['Hour', ...datasets.map(d=>d.label), 'Total'];
+  const rows = [headers.join(',')];
+  for (let i=0;i<labels.length;i++){
+    const rowVals = datasets.map(d=>Number(d.data[i]||0));
+    const total = sum(rowVals);
+    rows.push([labels[i], ...rowVals, total].join(','));
+  }
+  const blob = new Blob([`"${title.replaceAll('"','""')}"\n` + rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `hourly-${Date.now()}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+function populateBrandDropdown(allRows){
+  const sel = document.getElementById('chartFilterBrand');
+  sel.innerHTML = '<option value="ALL">All Brands</option>';
+  const brands = Array.from(new Set(allRows.map(r => (r?.[ANALYSIS_COLS.brand] ?? '')).map(s=>String(s).trim()).filter(Boolean))).sort();
+  for (const b of brands) { const opt = document.createElement('option'); opt.value=b; opt.textContent=b; sel.appendChild(opt); }
+}
+function refreshHourlyChart(){
+  const canvas = document.getElementById('chartHourlyCanvas'); if (!canvas) return;
+  const rows = (CHART_STATE.day==='Analysis Today') ? (CHART_STATE.dataToday||[]) : (CHART_STATE.dataYday||[]);
+  const { labels, datasets } = buildHourlySeries(rows, CHART_STATE.brand, CHART_STATE.metric);
+  const title = `${metricPretty(CHART_STATE.metric)} • ${CHART_STATE.brand === 'ALL' ? 'All Brands' : CHART_STATE.brand} • ${CHART_STATE.day}`;
+  CHART_STATE.chart = ensureHourlyChart(canvas.getContext('2d'), { labels, datasets, title }, CHART_STATE.chart);
+  updateKpis(labels, datasets);
+  renderHourTable(labels, datasets);
+  const btnCsv = document.getElementById('btnExportCsv');
+  if (btnCsv) btnCsv.onclick = () => exportCsv(labels, datasets, title);
+}
+async function initHourlyChart(){
+  const openBtn = document.getElementById('btnHourlyChart');
+  const backdrop= document.getElementById('chartBackdrop');
+  const modal = document.getElementById('chartModal');
+  const closeBtn= document.getElementById('btnChartClose');
+  const selDay = document.getElementById('chartFilterDay');
+  const selBrand= document.getElementById('chartFilterBrand');
+  const selMetric=document.getElementById('chartFilterMetric');
+  if (!openBtn || !modal) return;
+  let loaded = false;
+  function openModal() {
+    modal.classList.add('show'); backdrop.classList.add('show');
+    (async () => {
+      if (!loaded) {
+        setLoading(true);
+        try {
+          const { today, yday } = await loadAnalysisSheets();
+          CHART_STATE.dataToday = today||[]; CHART_STATE.dataYday = yday||[];
+          populateBrandDropdown([...(CHART_STATE.dataToday||[]), ...(CHART_STATE.dataYday||[])]);
+          loaded = true;
+        } catch(e) { console.error('Failed to load analysis sheets', e); alert('Failed to load Analysis sheets.'); }
+        finally { setLoading(false); }
+      }
+      refreshHourlyChart();
+    })();
+  }
+  function closeModal(){ modal.classList.remove('show'); backdrop.classList.remove('show'); }
+  openBtn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', closeModal);
+  document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeModal(); });
+  [selDay, selBrand, selMetric].forEach(sel => {
+    sel.addEventListener('change', () => {
+      CHART_STATE.day = selDay.value; CHART_STATE.brand = selBrand.value; CHART_STATE.metric = selMetric.value;
+      refreshHourlyChart();
+    });
+  });
+  const chkShowTable = document.getElementById('chkShowTable');
+  const chkStacked = document.getElementById('chkStacked');
+  const chkSmooth = document.getElementById('chkSmooth');
+  [chkShowTable,chkStacked,chkSmooth].forEach(el => { if (el) el.addEventListener('change', () => refreshHourlyChart()); });
+}
+
+/* ======================== Net Net AnalysisV2 ======================== */
+const _norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function findCol(header, candidates){
+  const H = header.map(h => _norm(h));
+  for (const c of candidates) {
+    const i = H.findIndex(h => h === _norm(c));
+    if (i !== -1) return i;
+  }
+  if (candidates.some(c => _norm(c).includes('currency'))) {
+    const i = H.findIndex(h => h.includes('curren'));
+    if (i !== -1) return i;
+  }
+  if (candidates.some(c => ['call','section','segment','group'].includes(_norm(c)))) {
+    const i = H.findIndex(h => h.includes('call') || h.includes('segment') || h.includes('section') || h.includes('group'));
+    if (i !== -1) return i;
+  }
+  return -1;
+}
+function segMatch(selected, value){
+  const v = String(value || '').trim().toUpperCase();
+  const s = String(selected || '').trim().toUpperCase();
+  if (s === 'ALL') return true;
+  if (s === 'MCW') return v === 'MCW' || v === 'MCX';
+  return v === s;
+}
+
+function loadNetV2CurrencyMap() {
+  return new Promise((resolve) => {
+    if (NETV2.currencyMap) return resolve(NETV2.currencyMap);
+    google.script.run
+      .withSuccessHandler(function(res){
+        NETV2.currencyMap = (res && !res.error) ? res : { CX:[], MCW:[], BAJI:[], E28:[], Other:[] };
+        resolve(NETV2.currencyMap);
+      })
+      .withFailureHandler(function(err){
+        console.error('getNetV2Currencies failed:', err);
+        NETV2.currencyMap = { CX:[], MCW:[], BAJI:[], E28:[], Other:[] };
+        resolve(NETV2.currencyMap);
+      })
+      .getNetV2Currencies();
+  });
+}
+
+async function ensureOverallLoaded(){
+  if (NETV2.overallMap) return NETV2.overallMap;
+  return new Promise((resolve)=>{
+    google.script.run
+      .withSuccessHandler(function(res){
+        NETV2.overallMap = (res && !res.error)
+          ? res
+          : { CX:{header:[],rows:[]}, MCW:{header:[],rows:[]}, BAJI:{header:[],rows:[]}, E28:{header:[],rows:[]}, Other:{header:[],rows:[]} };
+        NETV2.overallSig = objectSignature(NETV2.overallMap);
+        resolve(NETV2.overallMap);
+      })
+      .withFailureHandler(function(err){
+        console.error('getNetV2Overall failed:', err);
+        NETV2.overallMap = { CX:{header:[],rows:[]}, MCW:{header:[],rows:[]}, BAJI:{header:[],rows:[]}, E28:{header:[],rows:[]}, Other:{header:[],rows:[]} };
+        NETV2.overallSig = objectSignature(NETV2.overallMap);
+        resolve(NETV2.overallMap);
+      })
+      .getNetV2Overall();
+  });
+}
+function refreshOverallIfNeeded(){
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || res.error) return;
+      const sig = objectSignature(res);
+      if (sig !== NETV2.overallSig) {
+        NETV2.overallSig = sig;
+        NETV2.overallMap = res;
+        renderNetV2Overall();
+      }
+    })
+    .withFailureHandler(function(){ /* ignore */ })
+    .getNetV2Overall();
+}
+
+function forceNetV2TableRefresh(){
+  if (!(currentSheet === 'Brand Battle (Stats)' || currentSheet === 'Net Net AnalysisV2')) return;
+  google.script.run
+    .withSuccessHandler(function(result){
+      if (!result || result.error) return;
+      NETV2.header = result.header;
+      NETV2.raw = result.data || [];
+      NETV2.sig = rowsSignature(NETV2.raw);
+      withPreservedScroll(() => applyNetV2Filter(false));
+    })
+    .withFailureHandler(function(err){ console.error('forceNetV2TableRefresh failed:', err); })
+    .getSheetData(currentSheet, currentSpreadsheetId);
+}
+
+async function refreshUpdateTime(initial){
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || res.error) return;
+      const val = String(res.updateTime || '');
+      const badge = document.getElementById('updateTimeBadge');
+      if (val && val !== NETV2.updateTimeSig) {
+        NETV2.updateTimeSig = val;
+        if (badge) badge.textContent = `Update Time : ${val}`;
+        forceNetV2TableRefresh();
+      } else if (initial && val) {
+        if (badge) badge.textContent = `Update Time : ${val}`;
+        NETV2.updateTimeSig = val;
+      }
+    })
+    .withFailureHandler(function(){ /* ignore */ })
+    .getNetV2UpdateTime();
+}
+
+function miniFormatCell(v){
+  if (v == null) return '';
+  const s = String(v).trim();
+  const sl = s.toLowerCase();
+  if (sl === 'good') return '<span class="status-good">Good</span>';
+  if (sl === 'medium') return '<span class="status-medium">Medium</span>';
+  if (sl === 'bad') return '<span class="status-bad">Bad</span>';
+  if (s.includes('%')) {
+    const n = parseNumeric(s.replace('%',''));
+    if (n != null && n < 0) return `<span class="percentage-negative">${Number(n).toFixed(2)}%</span>`;
+    return `${Number(n ?? s).toFixed ? Number(n ?? s).toFixed(2) : s}%`;
+  }
+  const n = parseNumeric(s);
+  if (n == null) return s;
+  const out = Math.round(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return n < 0 ? `<span class="num-neg">${out}</span>` : out;
+}
+
+/* Currency badge map (rank-like pill per currency) */
+const CURRENCY_BADGE_MAP = {
+  BDT:{ bgStart:'#f5d76e', bgEnd:'#f3b63a', border:'#d4a017', shadow:'rgba(212,160,23,0.45)', text:'#4a3600', icon:'#e98fb3' },
+  INR:{ bgStart:'#e5d4ff', bgEnd:'#c4b1ff', border:'#8b5cf6', shadow:'rgba(139,92,246,0.35)', text:'#2d0f66', icon:'#7c3aed' },
+  PKR:{ bgStart:'#b8f3c2', bgEnd:'#66d18f', border:'#1f7a50', shadow:'rgba(31,122,80,0.35)', text:'#0b3b26', icon:'#065f46' },
+  NPR:{ bgStart:'#b8f0ff', bgEnd:'#6ad0e8', border:'#0e7490', shadow:'rgba(14,116,144,0.35)', text:'#063a4a', icon:'#0ea5e9' },
+  PHP:{ bgStart:'#d4e1ff', bgEnd:'#9ab6ff', border:'#2563eb', shadow:'rgba(37,99,235,0.3)', text:'#0b2c78', icon:'#1d4ed8' },
+  VND:{ bgStart:'#ffd6c4', bgEnd:'#ff9f7f', border:'#d64027', shadow:'rgba(214,64,39,0.35)', text:'#5c1a0c', icon:'#f97316' },
+  MMK:{ bgStart:'#ffe6b8', bgEnd:'#ffc94d', border:'#d97706', shadow:'rgba(217,119,6,0.35)', text:'#5c3000', icon:'#f59e0b' },
+  THB:{ bgStart:'#f1d8ff', bgEnd:'#d39bff', border:'#a855f7', shadow:'rgba(168,85,247,0.35)', text:'#3a0b66', icon:'#c084fc' },
+  USD:{ bgStart:'#bdeff7', bgEnd:'#81d2e2', border:'#0ea5e9', shadow:'rgba(14,165,233,0.35)', text:'#053447', icon:'#0ea5e9' },
+  AED:{ bgStart:'#c7f3dd', bgEnd:'#6fe7aa', border:'#15803d', shadow:'rgba(21,128,61,0.35)', text:'#0c3a1d', icon:'#16a34a' },
+  LKR:{ bgStart:'#ffd4e0', bgEnd:'#ff9cba', border:'#e11d48', shadow:'rgba(225,29,72,0.35)', text:'#5f0a20', icon:'#e11d48' }
+};
+function currencyBadge(val){
+  const key = String(val || '').trim().toUpperCase();
+  const cfg = CURRENCY_BADGE_MAP[key];
+  if (!cfg) return miniFormatCell(val);
+  const style = `--badge-bg-start:${cfg.bgStart};--badge-bg-end:${cfg.bgEnd};--badge-border:${cfg.border};--badge-shadow:${cfg.shadow};--badge-text:${cfg.text};--badge-icon:${cfg.icon};`;
+  return `<span class="currency-badge" style="${style}"><i data-lucide="crown" class="badge-icon" aria-hidden="true"></i>${key}</span>`;
+}
+
+function toggleOverallBox(force){
+  const box = document.getElementById('netv2-overall');
+  const content = document.getElementById('netv2-overall-content');
+  if (!box || !content) return;
+  NETV2_UI.overallOpen = (typeof force === 'boolean') ? force : !NETV2_UI.overallOpen;
+  localStorage.setItem('NETV2_OVERALL_OPEN', JSON.stringify(NETV2_UI.overallOpen));
+  box.classList.toggle('open', NETV2_UI.overallOpen);
+  content.style.display = NETV2_UI.overallOpen ? 'block' : 'none';
+  const headerBtn = box.querySelector('.collapsible-header');
+  if (headerBtn) headerBtn.setAttribute('aria-expanded', String(NETV2_UI.overallOpen));
+  refreshIcons();
+}
+
+function buildDetailsRow(header, row){
+  const cols = header.map((h,i)=>`<div><strong>${h}:</strong> ${miniFormatCell(row[i])}</div>`).join('');
+  return `<tr class="detail-row"><td colspan="${header.length}"><div style="display:grid;grid-template-columns: repeat(auto-fit,minmax(180px,1fr));gap:8px;">${cols}</div></td></tr>`;
+}
+
+function renderNetV2Overall(){
+  const box = document.getElementById('netv2-overall');
+  const titleEl = document.getElementById('netv2-overall-title');
+  const content = document.getElementById('netv2-overall-content');
+  if (!box || !titleEl || !content) return;
+  if (!(currentSheet === 'Brand Battle (Stats)' || currentSheet === 'Net Net AnalysisV2')) { box.style.display = 'none'; return; }
+
+  const seg = NETV2.segment;
+  const map = NETV2.overallMap || {};
+  const sortBy3rdDesc = rows => {
+    if (!Array.isArray(rows)) return [];
+    return rows.slice().sort((a,b)=>{
+      const na = parseNumeric(a?.[2]); const nb = parseNumeric(b?.[2]);
+      if (na === null && nb === null) return 0;
+      if (na === null) return 1;
+      if (nb === null) return -1;
+      return nb - na;
+    });
+  };
+
+  const renderBlock = (label, obj) => {
+    if (!obj || !obj.header || !obj.header.length) return '';
+    const rows = sortBy3rdDesc(obj.rows || []);
+    const currencyIdx = (obj.header || []).findIndex(h => String(h || '').toLowerCase().includes('currency'));
+    let html = `<div style="margin:8px 0 6px 2px; font-weight:900; color:var(--muted);">${label}</div>`;
+    html += `<table class="mini-table"><thead><tr>${obj.header.map(h=>`<th>${h||''}</th>`).join('')}</tr></thead><tbody>`;
+    rows.forEach((r, idx) => {
+      const rowId = `${label}-${idx}`;
+      const cells = r.map((c, colIdx) => {
+        const cell = (currencyIdx === colIdx) ? currencyBadge(c) : miniFormatCell(c);
+        return `<td>${cell}</td>`;
+      }).join('');
+      html += `<tr class="row-expander" tabindex="0" data-row="${rowId}" aria-expanded="false">${cells}</tr>`;
+      html += `<tr class="detail-row hidden" data-detail="${rowId}"><td colspan="${obj.header.length}"></td></tr>`;
+    });
+    html += `</tbody></table>`;
+    return html;
+  };
+
+  if (seg === 'ALL') {
+    titleEl.textContent = `Overall — All`;
+    const html = [
+      renderBlock('CX', map.CX),
+      renderBlock('MCW', map.MCW),
+      renderBlock('BAJI', map.BAJI),
+      renderBlock('E28', map.E28),
+      renderBlock('Other', map.Other)
+    ].join('') || `<div style="opacity:.75;">No Overall data found.</div>`;
+    if (content.innerHTML !== html) content.innerHTML = html;
+    content.querySelectorAll('.row-expander').forEach(tr=>{
+      tr.addEventListener('click', ()=>toggleDetailRow(tr, map));
+      tr.addEventListener('keydown', (e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); toggleDetailRow(tr, map); } });
+    });
+    box.style.display = 'block';
+    toggleOverallBox(NETV2_UI.overallOpen);
+    refreshIcons();
+    return;
+  }
+
+  const dataObj = map[seg] || { header:[], rows:[] };
+  titleEl.textContent = `Overall — ${seg}`;
+  box.style.display = 'block';
+  if (!dataObj.header || !dataObj.header.length) {
+    const html = `<div style="opacity:.75;">No Overall data found for ${seg}.</div>`;
+    if (content.innerHTML !== html) content.innerHTML = html;
+    toggleOverallBox(NETV2_UI.overallOpen);
+    refreshIcons();
+    return;
+  }
+  const rows = sortBy3rdDesc(dataObj.rows || []);
+  const currencyIdx = (dataObj.header || []).findIndex(h => String(h || '').toLowerCase().includes('currency'));
+  let html = `<table class="mini-table"><thead><tr>${dataObj.header.map(h=>`<th>${h || ''}</th>`).join('')}</tr></thead><tbody>`;
+  rows.forEach((r, idx)=>{
+    const rowId = `${seg}-${idx}`;
+    const cells = r.map((c, colIdx) => {
+      const cell = (currencyIdx === colIdx) ? currencyBadge(c) : miniFormatCell(c);
+      return `<td>${cell}</td>`;
+    }).join('');
+    html += `<tr class="row-expander" tabindex="0" data-row="${rowId}" aria-expanded="false">${cells}</tr>`;
+    html += `<tr class="detail-row hidden" data-detail="${rowId}"><td colspan="${dataObj.header.length}"></td></tr>`;
+  });
+  html += `</tbody></table>`;
+  if (content.innerHTML !== html) content.innerHTML = html;
+  content.querySelectorAll('.row-expander').forEach(tr=>{
+    tr.addEventListener('click', ()=>toggleDetailRow(tr, {[seg]:dataObj}));
+    tr.addEventListener('keydown', (e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); toggleDetailRow(tr, {[seg]:dataObj}); } });
+  });
+  toggleOverallBox(NETV2_UI.overallOpen);
+  refreshIcons();
+}
+
+function toggleDetailRow(tr, map){
+  const rowId = tr.getAttribute('data-row');
+  const detail = tr.parentElement.querySelector(`.detail-row[data-detail="${rowId}"]`);
+  if (!detail) return;
+  const open = detail.classList.contains('hidden');
+  tr.setAttribute('aria-expanded', String(open));
+  detail.classList.toggle('hidden', !open);
+  if (open && !detail.dataset.filled) {
+    const table = tr.closest('table');
+    const headerTexts = Array.from(table.querySelectorAll('thead th')).map(th=>th.textContent || '');
+    const rowCells = Array.from(tr.children).map(td=>td.textContent);
+    detail.querySelector('td').innerHTML = `<div style="display:grid;grid-template-columns: repeat(auto-fit,minmax(180px,1fr));gap:8px;">${
+      headerTexts.map((h,i)=>`<div><strong>${h}:</strong> ${rowCells[i] ?? ''}</div>`).join('')
+    }</div>`;
+    detail.dataset.filled = '1';
+  }
+}
+
+/* ===== Controls ===== */
+async function buildNetV2Controls(header, rows){
+  NETV2.header = header;
+  NETV2.raw = Array.isArray(rows) ? rows : [];
+  const segList = ['ALL','CX','MCW','BAJI','E28','Other'];
+  const cmap = await loadNetV2CurrencyMap();
+  const unionCurrencies = Array.from(new Set([ ...(cmap?.CX || []), ...(cmap?.MCW || []), ...(cmap?.BAJI || []), ...(cmap?.E28 || []), ...(cmap?.Other || []) ])).sort();
+  const currList =
+    NETV2.segment === 'ALL'   ? unionCurrencies :
+    NETV2.segment === 'MCW'   ? (cmap?.MCW  || []) :
+    NETV2.segment === 'BAJI'  ? (cmap?.BAJI || []) :
+    NETV2.segment === 'E28'   ? (cmap?.E28  || []) :
+    NETV2.segment === 'Other' ? (cmap?.Other|| []) :
+                                 (cmap?.CX   || []);
+  const el = document.getElementById('netv2-controls');
+  if (!el) return;
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="nnv2-row nnv2-seg"><strong>Section:</strong>
+      ${segList.map(s => {
+        const active = (NETV2.segment === s) || (s==='MCW' && NETV2.segment==='MCX');
+        return `<button class="${active?'active':''}" data-seg="${s}">${s}</button>`;
+      }).join(' ')}
+    </div>
+    <div class="nnv2-row nnv2-curr"><strong>Currencies:</strong>
+      ${['ALL', ...currList].map(c => `<span class="chip ${NETV2.currency===c?'active':''}" data-d="${c}"><i data-lucide="coins" aria-hidden="true"></i>${c}</span>`).join(' ')}
+    </div>
+  `;
+  el.querySelectorAll('.nnv2-seg button').forEach(btn => {
+    btn.onclick = async () => {
+      NETV2.segment = btn.dataset.seg;
+      NETV2.currency = 'ALL';
+      await buildNetV2Controls(NETV2.header, NETV2.raw);
+      withPreservedScroll(() => applyNetV2Filter(true));
+      await ensureOverallLoaded();
+      renderNetV2Overall();
+    };
+  });
+  el.querySelectorAll('.nnv2-curr .chip').forEach(chip => {
+    chip.onclick = async () => {
+      const c = chip.dataset.d;
+      NETV2.currency = (NETV2.currency === c && c !== 'ALL') ? 'ALL' : c;
+      await buildNetV2Controls(NETV2.header, NETV2.raw);
+      withPreservedScroll(() => applyNetV2Filter(false));
+      renderNetV2Overall();
+    };
+  });
+  document.getElementById('netv2-searchwrap').style.display = 'flex';
+  document.getElementById('table-tools').style.display = 'flex';
+  const searchInput = document.getElementById('netv2-search');
+  if (searchInput && !searchInput.__hooked) {
+    searchInput.__hooked = true;
+    searchInput.addEventListener('input', debounce(() => {
+      NETV2_SEARCH = searchInput.value || '';
+      withPreservedScroll(() => applyNetV2Filter(false));
+    }, 150));
+  }
+  refreshIcons();
+}
+
+/* Filter → hide Call/Currency → search → sort → render */
+function applyNetV2Filter(isInitial){
+  const callIdx = findCol(NETV2.header, ['Call','Section','Segment','Group']);
+  const currIdx = findCol(NETV2.header, ['Currency','Currencies']);
+  let rows = NETV2.raw.filter(r => segMatch(NETV2.segment, r?.[callIdx]));
+  if (NETV2.currency !== 'ALL' && currIdx >= 0) {
+    rows = rows.filter(r => String(r?.[currIdx] || '').trim() === NETV2.currency);
+  }
+  const hideIdx = new Set([callIdx, currIdx].filter(i => i >= 0));
+  let filteredHeader = NETV2.header.filter((_, i) => !hideIdx.has(i));
+  let filteredRows = rows.map(r => r.filter((_, i) => !hideIdx.has(i)));
+  filteredRows = applySearchRows(filteredRows, NETV2_SEARCH);
+  if (TABLE_SORT.col != null) {
+    filteredRows = sortRows(filteredRows, TABLE_SORT.col, TABLE_SORT.dir);
+  }
+  renderTable(filteredHeader, filteredRows, !!isInitial);
+}
+
+/* ======================== BOOTSTRAP ICONS ON LOAD ======================== */
+window.addEventListener('load', refreshIcons);
+window.addEventListener('load', refreshLayoutSpacing);
+
+/* ======================== BRAND DAILY STATE ======================== */
+const BRAND_LIST = ['Crickex', 'BetJili', 'Mostplay', 'BetVisa', 'JeetWin', 'DarazPlay', 'HeyBaJi', 'KheloVIP', 'JeetBangla', 'SuperBaJi', 'SlotBaji', 'BetJDB', 'JeetWay', 'GA123'];
+const CURRENCY_LIST = ['BDT', 'INR', 'PHP', 'VND', 'PKR', 'NPR', 'MMK', 'THB', 'USD', 'AED', 'LKR'];
+const CURRENCY_SYMBOLS = {
+  BDT: '৳',
+  INR: '₹',
+  PKR: '₨',
+  NPR: '₨',
+  PHP: '₱',
+  VND: '₫',
+  MMK: 'Ks',
+  THB: '฿',
+  USD: '$',
+  AED: 'د.إ',
+  LKR: 'Rs'
+};
+
+function isBrand(val) {
+  return BRAND_LIST.some(b => String(val || '').trim().toUpperCase() === b.toUpperCase());
+}
+
+function isCurrency(val) {
+  return CURRENCY_LIST.includes(String(val || '').trim().toUpperCase());
+}
+
+function formatBrandDailyCell(val, header) {
+  if (!val && val !== 0) return '';
+  const str = String(val).trim();
+  
+  // If cell value is a brand name, format as brand badge
+  if (isBrand(str)) {
+    return `<span class="brand-badge">${str}</span>`;
+  }
+  
+  // Format numbers with thousand separators and currency symbol
+  const headerUpper = String(header || '').trim().toUpperCase();
+  const currencySymbol = CURRENCY_SYMBOLS[headerUpper] || '';
+  
+  const num = parseFloat(str.replace(/,/g, ''));
+  if (!isNaN(num) && (num !== 0 || str === '0' || str === '0.00')) {
+    if (num === 0) return '0.00';
+    const formatted = num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // Add currency symbol if it's a currency column
+    if (currencySymbol) {
+      return `<span style="font-size: 1.2em; font-weight: 700; margin-right: 4px;">${currencySymbol}</span>${formatted}`;
+    }
+    return formatted;
+  }
+  
+  return str;
+}
+
+let BRAND_DAILY_SORT = { col: 1, dir: 'DESC' }; // Default sort by BDT (col 1) DESC
+
+// Old functions removed - replaced with new daily modal functions below
+
+// ==================== DAILY MODAL (CX GROUP) ==================== //
+const DAILY_CURRENCIES = ['BDT', 'INR', 'PKR', 'NPR', 'PHP', 'VND', 'MMK', 'THB', 'USD', 'AED', 'LKR'];
+let DAILY_MODAL_DATA = { header: [], data: [] };
+
+function openDailyModal() {
+    const modal = document.getElementById('brandDailyModal');
+    if (modal) modal.classList.add('active');
+    renderDailyTable();
+}
+
+function closeDailyModal() {
+    const modal = document.getElementById('brandDailyModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function renderDailyTable() {
+    const table = document.getElementById('cxgroupTable');
+    if (!table) return;
+    
+    const header = DAILY_MODAL_DATA.header;
+    const data = DAILY_MODAL_DATA.data.filter(row => row.some(cell => String(cell || '').trim() !== ''));
+    
+    let html = '<thead><tr>';
+    header.forEach((h, idx) => {
+        const headerUpper = String(h || '').trim().toUpperCase();
+        const sortIcon = `<span class="sort-icon unsorted">⇅</span>`;
+        
+        if (DAILY_CURRENCIES.includes(headerUpper)) {
+            const currencyClass = `currency-${headerUpper.toLowerCase()}`;
+            html += `<th class="${currencyClass} sortable" data-column="${headerUpper.toLowerCase()}" data-col="${idx}">
+                <span class="currency-badge-header">
+                    <i data-lucide="crown" class="badge-icon"></i>
+                    <span class="currency-code">${headerUpper}</span>
+                </span>
+                ${sortIcon}
+            </th>`;
+        } else {
+            html += `<th data-col="${idx}">${h || ''}${sortIcon}</th>`;
+        }
+    });
+    html += '</tr></thead><tbody>';
+    
+    data.forEach((row) => {
+        html += '<tr>';
+        row.forEach((cell, idx) => {
+            const headerVal = header[idx] || '';
+            const headerUpper = String(headerVal || '').trim().toUpperCase();
+            let formatted = String(cell || '');
+            
+            if (DAILY_CURRENCIES.includes(headerUpper)) {
+                const num = parseFloat(formatted.replace(/,/g, ''));
+                if (!isNaN(num)) {
+                    formatted = num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+            }
+            html += `<td>${formatted}</td>`;
+        });
+        html += '</tr>';
+    });
+    html += '</tbody>';
+    
+    table.innerHTML = html;
+    
+    // Add sort handlers
+    table.querySelectorAll('th').forEach(th => {
+        th.addEventListener('click', () => {
+            const colIdx = parseInt(th.getAttribute('data-col'));
+            sortDailyTable(table, colIdx);
+        });
+    });
+    
+    refreshIcons();
+}
+
+function sortDailyTable(table, colIdx) {
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let aVal = a.cells[colIdx].textContent.trim();
+        let bVal = b.cells[colIdx].textContent.trim();
+        
+        const aNum = parseFloat(aVal.replace(/,/g, ''));
+        const bNum = parseFloat(bVal.replace(/,/g, ''));
+        
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+            return bNum - aNum;
+        }
+        return aVal.localeCompare(bVal);
+    });
+    
+    tbody.innerHTML = '';
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+function initDailyModal() {
+    const openBtn = document.getElementById('btnBrandDaily');
+    const modal = document.getElementById('brandDailyModal');
+    const closeBtn = document.getElementById('brandDailyModalClose');
+    
+    if (!openBtn || !modal) return;
+    
+    openBtn.addEventListener('click', openDailyModal);
+    closeBtn.addEventListener('click', closeDailyModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeDailyModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDailyModal();
+    });
+}
+
+function initTelegramButton() {
+    const btn = document.getElementById('btnTelegramScreenshot');
+    if (!btn) return;
+   
+    btn.addEventListener('click', async event => {
+        const targetBtn = event?.target ? event.target.closest('button') : btn;
+        const btnEl = targetBtn || btn;
+        btnEl.disabled = true;
+        const spanEl = btnEl.querySelector('span');
+        const originalText = spanEl ? spanEl.textContent : 'Send to Telegram';
+        if (spanEl) spanEl.textContent = 'Sending...';
+        
+        try {
+            setLoading(true);
+            const modalContent = document.querySelector('.brand-daily-modal-content');
+            if (!modalContent) throw new Error('Modal not found');
+            
+            const canvas = await html2canvas(modalContent, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff'
+            });
+            const imageData = canvas?.toDataURL('image/png');
+            if (!imageData) throw new Error('Captured image is empty');
+            
+            google.script.run
+                .withSuccessHandler(function() {
+                    setLoading(false);
+                    btnEl.disabled = false;
+                    if (spanEl) spanEl.textContent = originalText;
+                    alert('Screenshot sent to Telegram successfully!');
+                })
+                .withFailureHandler(function(err) {
+                    setLoading(false);
+                    btnEl.disabled = false;
+                    if (spanEl) spanEl.textContent = originalText;
+                    alert('Failed to send screenshot: ' + err);
+                })
+                .sendBrandDailyModalScreenshot(imageData);
+        } catch (err) {
+            setLoading(false);
+            btnEl.disabled = false;
+            if (spanEl) spanEl.textContent = originalText;
+            alert('Failed to capture screenshot: ' + err.message);
+        }
+    });
+}
+
+window.addEventListener('load', initDailyModal);
+window.addEventListener('load', initTelegramButton);
+  </script>
+  
+  <!-- Brand Daily State Modal (CX Group Table) -->
+  <div id="brandDailyModal" class="brand-daily-modal">
+    <div class="brand-daily-modal-content" style="max-width: 1400px; max-height: 90vh; overflow-y: auto;">
+      <div class="brand-daily-modal-header">
+        <h2>Brand Daily State</h2>
+        <div class="brand-daily-modal-actions">
+          <button id="btnTelegramScreenshot" title="Send screenshot to Telegram">
+            <i data-lucide="send" aria-hidden="true"></i>
+            <span>Send to Telegram</span>
+          </button>
+          <button id="brandDailyModalClose" class="brand-daily-modal-close" aria-label="Close">×</button>
+        </div>
+      </div>
+      <table id="cxgroupTable">
+            <thead>
+                <tr>
+                    <th class="sortable brand-header" data-column="brand">
+                        <span class="column-badge brand-badge-header"><i data-lucide="briefcase" class="badge-icon"></i>Brand<span class="sort-icon unsorted"></span></span>
+                    </th>
+                    <th class="type-column type-header">
+                        <span class="column-badge type-badge-header"><i data-lucide="list" class="badge-icon"></i>Type</span>
+                    </th>
+                    <th class="currency-bdt sortable" data-column="bdt" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">BDT</span>
+                            <span class="currency-symbol" data-currency="BDT"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-inr sortable" data-column="inr" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">INR</span>
+                            <span class="currency-symbol" data-currency="INR"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-pkr sortable" data-column="pkr" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">PKR</span>
+                            <span class="currency-symbol" data-currency="PKR"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-npr sortable" data-column="npr" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">NPR</span>
+                            <span class="currency-symbol" data-currency="NPR"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-php sortable" data-column="php" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">PHP</span>
+                            <span class="currency-symbol" data-currency="PHP"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-vnd sortable" data-column="vnd" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">VND</span>
+                            <span class="currency-symbol" data-currency="VND"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-mmk sortable" data-column="mmk" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">MMK</span>
+                            <span class="currency-symbol" data-currency="MMK"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-thb sortable" data-column="thb" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">THB</span>
+                            <span class="currency-symbol" data-currency="THB"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-usd sortable" data-column="usd" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">USD</span>
+                            <span class="currency-symbol" data-currency="USD"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-aed sortable" data-column="aed" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">AED</span>
+                            <span class="currency-symbol" data-currency="AED"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                    <th class="currency-lkr sortable" data-column="lkr" data-sort="desc">
+                        <span class="currency-badge-header">
+                            <i data-lucide="crown" class="badge-icon"></i>
+                            <span class="currency-code">LKR</span>
+                            <span class="currency-symbol" data-currency="LKR"></span>
+                        </span>
+                        <span class="sort-icon desc"></span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td class="brand-total-cell"><span class="brand-badge">Total</span></td>
+                    <td class="type-column-cell">
+                        <div class="type-summary">
+                            <span>Deposit: --</span>
+                            <span>Withdrawal: --</span>
+                            <span>Net Deposit: --</span>
+                        </div>
+                    </td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                </tr>
+            </tfoot>
+            </table>
+            </div>
+            </div>
+  
+    </body>
+  </html>
+--------------------

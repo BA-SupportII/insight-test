@@ -1,0 +1,11 @@
+name = "insighttrack"
+main = "server.js"
+type = "service-worker"
+account_id = "YOUR_ACCOUNT_ID"
+workers_dev = true
+
+[env.production]
+name = "insighttrack-prod"
+routes = [
+  { pattern = "insighttrack.workers.dev", zone_name = "workers.dev" }
+]
