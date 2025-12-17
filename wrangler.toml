@@ -1,11 +1,7 @@
 name = "insighttrack"
-main = "server.js"
-type = "service-worker"
 account_id = "133557049017b99a81ac398f18d19e46"
-workers_dev = true
+main = "src/index.js"
+compatibility_date = "2024-01-01"
 
 [env.production]
 name = "insighttrack-prod"
-routes = [
-  { pattern = "insighttrack.workers.dev", zone_name = "workers.dev" }
-]
